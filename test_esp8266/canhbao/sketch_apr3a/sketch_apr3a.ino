@@ -15,10 +15,10 @@ float distanceCm;
 uint16_t val;
 
 /* ------------------------Wifi connnection Details-----------------------*/ 
-const char* ssid ="Đồ Gỗ Đàm Dung";
-const char* password = "01230123";
 // const char* ssid ="TTCH";
 // const char* password = "ase123456";
+const char* ssid ="TTCH";
+const char* password = "ase123456";
 /*----------------MQTT Broker Connection Details-------------------------*/
 
 const char* mqtt_server = "ae501b5ee3194ca682bd67e257459478.s1.eu.hivemq.cloud";

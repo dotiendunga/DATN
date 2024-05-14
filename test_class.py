@@ -16,6 +16,7 @@ import time
 import json 
 from receive_from_esp import*
 # from data import*
+
 # from data import get_data_status
 
 #---------------- initializing the variables    -----------------------
@@ -42,7 +43,7 @@ train_status="An Toàn"
 # Turn ON / OFF notification 
 # turn_values=0
 #Các điểm mục tiêu 
-Location_array=[] 
+# Location_array=[] 
 #---------------------------connect to  MQTT---------------------------------
 
 # /*MQTT Broker Connection Details*/
@@ -115,9 +116,11 @@ class RootApplication(tk.Tk):
         self.configure(bg='gray')
         self.title("Hệ Thống Tàu Hỏa")
         # Icon 
-        self.iconbitmap('image\eye.ico')
+        # self.iconbitmap('./image/eye.ico')
+        img = PhotoImage(file='image/eye.png')
+        self.tk.call('wm', 'iconphoto', self._w, img)
         # BackGround:
-        self.image = Image.open(r"C:\Users\dungs\Desktop\DATN\image\Bground-min.png")
+        self.image = Image.open(r"image/Bground-min.png")
         self.img = ImageTk.PhotoImage(self.image)
         # image_path = "image/Bground.png"
         # self.img = PhotoImage(file=image_path)
@@ -128,7 +131,7 @@ class RootApplication(tk.Tk):
         self.frame2 = Frame2(self)
         self.frame2.config(bg="white",width=1180,height=550)
         self.frame2.place(x=52,y=146)
-        self.button_frame1=Button(self,text="Theo dõi xe",font=('Arial', 13, 'bold'),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
+        self.button_frame1=Button(self,text="Theo dõi xe",font=('Arial', 13),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
                                   borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.show_frame(self.frame2))
         self.button_frame1.place(x=881,y=100)
         #------------------------- frame3 -------------------------------
@@ -231,10 +234,10 @@ class Frame1(tk.Frame):
             target_id=1
         Latitude_target=self.Entry_Latitude_Target.get() 
         Longitude_target=self.Entry_Longitude_Target.get()
-        new_element = {"Latitude": Latitude_target, "Longitude": Longitude_target}
+        # new_element = {"Latitude": Latitude_target, "Longitude": Longitude_target}
         # Thêm phần tử mới vào mảng
-        Location_array.append(new_element)
-        # self.after(3000,self.update_label_location_target)
+        # Location_array.append(new_element)
+        self.after(3000,self.update_label_location_target)
 
     def update_frame1_realtime(self):
         global Location,train_status,speed_id,status
@@ -289,9 +292,9 @@ class Frame2(tk.Frame):
         self.Distance= Label(self,text="Khoảng cách",fg='Gray',width=21,borderwidth=0,border=1,justify=CENTER,font=("Arial", 9, "bold"),relief='groove',pady=2)
         self.Distance.place(x=1032,y=310)
         # Distance values
-        self.button_clear=Button(self,text="Xóa mục tiêu",fg='white',bg='#4660ac',relief='groove',cursor='hand2',command=self.clear_target_on_map,
-                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
-        self.button_clear.place(x=1032,y=350)
+        # self.button_clear=Button(self,text="Xóa mục tiêu",fg='white',bg='#4660ac',relief='groove',cursor='hand2',command=self.clear_target_on_map,
+        #                 width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
+        # self.button_clear.place(x=1032,y=350)
 
         #---------------------Map view-------------------------------------------------------
 
@@ -299,13 +302,12 @@ class Frame2(tk.Frame):
         self.map_widget.place(relx=0.49, rely=0.5, anchor=CENTER)
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
         #----------------------Show location - Real time------------------------
-        self.map_widget.add_right_click_menu_command(label="Add Marker",
-                                                command=self.add_marker_event,
+        self.map_widget.add_right_click_menu_command(label="",command=self.add_marker_event,
                                                 pass_coords=True)
-        
         self.update_location_map()
         self.update_location_target()
         self.update_realtime_frame2()
+
     # Update speed text
     # update location in map
     def deledmarker(self):
@@ -322,51 +324,59 @@ class Frame2(tk.Frame):
     def update_location_target(self):
         global latitude_values,longitude_values,target_id
         global Latitude_target,Longitude_target
-        # print(Latitude_target,Longitude_target)
+        print(Latitude_target,Longitude_target)
         # address = tkintermapview.convert_address_to_coordinates(Location_target)
         if Latitude_target and Longitude_target is not None:
             Latitude_string = Latitude_target.strip() 
             Longitude_string = Longitude_target.strip()
-            print(type(Latitude_string), Longitude_string)
-            # if Latitude_string !="0.0" and Longitude_string != "0.0":  # Kiểm tra xem chuỗi có giá trị không
-            try:
-                Latitude_target_f = float(Latitude_string)
-                Longitude_target_f = float(Longitude_string)
-                # self.marker2.set_text("Điểm mục tiêu")
-                self.marker2=self.map_widget.set_marker(Latitude_target_f,Longitude_target_f,text="Điểm mục tiêu")
-                # update distance values
-                self.distance_2_point=hs.haversine((Latitude_target_f,Longitude_target_f),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
-                self.Distance.config(text=self.distance_2_point)
-                # Load file âm thanh
-                if self.distance_2_point <= 1.0:
-                    # self.marker2.hide_image(True)
-                    self.marker2.delete()
-                    playsound('Audio/Audio_MucTieu.wav')
-                    target_id=0
-                    self.Distance.config(text="Hoàn thành")
-                # Tiếp tục xử lý với Longitude_target_f ở đây
-            except ValueError:
-                print("Không thể chuyển đổi chuỗi thành số float.")
+
+            if Latitude_string !="0.0" and Longitude_string != "0.0":  # Kiểm tra xem chuỗi có giá trị không
+                try:
+                    print(Latitude_string,Longitude_string)
+                    Latitude_target_f = float(Latitude_string)
+                    Longitude_target_f = float(Longitude_string)
+                    # self.marker2.set_text("Điểm mục tiêu")
+                    self.marker2=self.map_widget.set_marker(Latitude_target_f,Longitude_target_f,text="Điểm mục tiêu")
+                    # update distance values
+                    self.distance_2_point=hs.haversine((Latitude_target_f,Longitude_target_f),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
+                    self.Distance.config(text=self.distance_2_point)
+                    self.path_1 = self.map_widget.set_path([(Latitude_target_f,Longitude_target_f), (latitude_values,longitude_values)])
+
+                    # if Longitude_target_f <100 or Latitude_target_f <10:
+                    #     self.marker2.delete()
+                    # Load file âm thanh
+                    if self.distance_2_point <= 1.0:
+                        # self.marker2.delete()
+                        self.map_widget.delete_all_marker()
+                        self.map_widget.delete_all_path()
+                        playsound('Audio/Audio_MucTieu.wav')
+                        target_id=0
+                        self.Distance.config(text="Hoàn thành")
+                    # Tiếp tục xử lý với Longitude_target_f ở đây
+                except ValueError:
+                    print("Không thể chuyển đổi chuỗi thành số float.")
         else:
             target_id=1
             self.Distance.config(text="")
         self.after(3000,self.update_location_target)
         
-    def clear_target_on_map(self):
-        self.map_widget.delete_all_marker()
+    # def clear_target_on_map(self):
+    #     global target_id 
+    #     self.map_widget.delete_all_marker()
+    #     target_id=0
 
     def add_marker_event(self,coords):
         # self.marker2.set_text("Điểm mục tiêu")
-        self.marker3=self.map_widget.set_marker(coords[0],coords[1],text="Điểm mục tiêu")
-        # update distance values
-        self.distance_2_point=hs.haversine((coords[0],coords[1]),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
-        self.Distance.config(text=self.distance_2_point)
-        if self.distance_2_point <= 1.0:
-            # self.marker2.hide_image(True)
-            self.marker3.delete()
-            playsound('Audio/Audio_MucTieu.wav')
-            # self.Distance.config(text="Hoàn thành")
-            
+        # self.marker3=self.map_widget.set_marker(coords[0],coords[1],text="Điểm mục tiêu")
+        # # update distance values
+        # self.distance_2_point=hs.haversine((coords[0],coords[1]),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
+        # self.Distance.config(text=self.distance_2_point)
+        # if self.distance_2_point <= 1.0:
+        #     # self.marker2.hide_image(True)
+        #     self.marker3.delete()
+        #     playsound('Audio/Audio_MucTieu.wav')
+        #     # self.Distance.config(text="Hoàn thành")
+        return coords
     def update_realtime_frame2(self):
         # def update_speed(self):
         global speed_id,Location
@@ -390,12 +400,12 @@ class Frame3(tk.Frame):
         self.tree.heading("Status", text="Status")
         self.tree.heading("Time", text="Time")
         # Thiết lập chiều rộng cột
-        self.tree.column("Latitude", width=50)
-        self.tree.column("Longtitud", width=50)
-        self.tree.column("Speed", width=30)
-        self.tree.column("Location", width=250)
-        self.tree.column("Status", width=50)
-        self.tree.column("Time", width=30)
+        self.tree.column("Latitude",anchor="center", width=50)
+        self.tree.column("Longtitud", anchor="center",width=50)
+        self.tree.column("Speed",anchor="center", width=30)
+        self.tree.column("Location", anchor="center",width=250)
+        self.tree.column("Status", anchor="center",width=50)
+        self.tree.column("Time", anchor="center",width=65)
         # Tạo scrollbar cho treeview
         self.scrollbar1 = ttk.Scrollbar(self, orient="vertical", command=self.tree.yview)
         self.scrollbar2 = ttk.Scrollbar(self, orient="horizontal", command=self.tree.xview)

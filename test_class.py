@@ -71,6 +71,8 @@ def on_message(client, userdata, message):
     longitude_values=data["Longitude"]
     adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
     Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
+    # clear path
+    app.frame2.clear_path()
     #------------------------------ Update data when receive data from cloud -------------------------------------
     # receive data from esp -> notification Distance between Sation and Train :
     # Ha Noi Station (Id: 1), Hai Duong Staion(Id: 2), Hai Phong Station (Id :3 ) 
@@ -131,22 +133,22 @@ class RootApplication(tk.Tk):
         self.frame2 = Frame2(self)
         self.frame2.config(bg="white",width=1180,height=550)
         self.frame2.place(x=52,y=146)
-        self.button_frame1=Button(self,text="Theo dõi xe",font=('Arial', 13),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
-                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.show_frame(self.frame2))
+        self.button_frame1=Button(self,text="Theo dõi xe",font=('Arial', 13, 'bold'),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
+                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.frame2.tkraise())
         self.button_frame1.place(x=881,y=100)
         #------------------------- frame3 -------------------------------
         self.frame3 = Frame3(self)
         self.frame3.config(bg="white",width=1180,height=550)
         self.frame3.place(x=52,y=146)
         self.button_frame1=Button(self,text="Trang dữ liệu",font=('Arial', 13, 'bold'),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
-                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.show_frame(self.frame3))
+                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.frame3.tkraise())
         self.button_frame1.place(x=1081,y=100)
         #------------------------- Frame1 -------------------------------
         self.frame1 = Frame1(self)
         self.frame1.config(bg="white",width=1180,height=550)
         self.frame1.place(x=52,y=146)
         self.button_frame1=Button(self,text="Trang thông tin",font=('Arial', 13, 'bold'),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
-                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.show_frame(self.frame1))
+                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.frame1.tkraise())
         self.button_frame1.place(x=680,y=100)
         self.label_time = tk.Label(self, font=('Arial', 15, 'bold'),bg="white",fg="#4660ac"
                                    ,borderwidth=0,border=0,width=18,relief='groove',justify=CENTER)
@@ -159,8 +161,11 @@ class RootApplication(tk.Tk):
         current_time = datetime.now().strftime('%Y-%m-%d  %H:%M:%S')
         self.label_time.config(text=current_time)
         self.label_time.after(1000,self.update_time)
-    def show_frame(self,frame_show):
-        frame_show.tkraise()
+    # def show_frame(self,frame_show):
+    #     # try:
+    #     frame_show.tkraise()
+    #     # except:
+            # print("wait")
 #------------------------------------------- Frame 1: Trang điều khiển xe ---------------------------------------------------
         
 class Frame1(tk.Frame):
@@ -179,10 +184,10 @@ class Frame1(tk.Frame):
 
         self.label_status=Label(self,text="Trạng thái Tàu",fg='white',bg='#f22f2f',relief='groove',
                         width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
-        self.label_status.place(x=870,y=160)
+        self.label_status.place(x=29,y=270)
         self.label_show=Label(self,text="Trạng thái..",fg='white',bg='#777777',relief='groove',pady=4,
                         width=17,borderwidth=1,border=1,justify=CENTER,font=("Arial", 12, "bold"))
-        self.label_show.place(x=910,y=215)
+        self.label_show.place(x=62,y=325)
         # -------------------------------------------------- TURN ON /OFF notification -------------------------------------------------------------------
         # # Change Turn values:
         # global turn_values
@@ -212,31 +217,60 @@ class Frame1(tk.Frame):
         self.Label_target=Label(self,text="Mục tiêu di chuyển",fg='white',bg="#4660ac",width=30,borderwidth=0,border=1,justify=CENTER,
                        font=("Arial", 15, "bold"),pady=5)
         self.Label_target.place(x=400,y=380)
-        self.Entry_Latitude_Target=Entry(self,fg="#4660ac",bg="#EDEBEB",relief='flat',width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"))
-        self.Entry_Latitude_Target.place(x=540,y=435)     
-        self.Entry_Longitude_Target=Entry(self,fg="#4660ac",bg="#EDEBEB",relief='flat',width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"))
-        self.Entry_Longitude_Target.place(x=540,y=490)      
-        self.Label_Latitude_target=Label(self,text="Kinh độ",fg='white',bg="#4660ac",width=10,borderwidth=0,border=0,justify=CENTER,
-                       font=("Arial", 15, "bold"),pady=5)
-        self.Label_Latitude_target.place(x=400,y=435)
-        self.Label_Longitude_target=Label(self,text="Vĩ độ",fg='white',bg="#4660ac",width=10,borderwidth=0,border=0,justify=CENTER,
-                       font=("Arial", 15, "bold"),pady=5)
-        self.Label_Longitude_target.place(x=400,y=490)
+        self.Entry_Lat_Long_Target=Entry(self,fg="#4660ac",bg="#EDEBEB",relief='flat',width=19,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"))
+        self.Entry_Lat_Long_Target.place(x=550,y=435)     
+        # self.Entry_Longitude_Target=Entry(self,fg="#4660ac",bg="#EDEBEB",relief='flat',width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"))
+        # self.Entry_Longitude_Target.place(x=540,y=490)      
+        self.Label_target=Label(self,text="Kinh độ/ Vĩ độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=0,justify=CENTER,
+                       font=("Arial", 15, "bold"))
+        self.Label_target.place(x=400,y=435)
+        # self.Label_Longitude_target=Label(self,text="Vĩ độ",fg='white',bg="#4660ac",width=10,borderwidth=0,border=0,justify=CENTER,
+        #                font=("Arial", 15, "bold"),pady=5)
+        # self.Label_Longitude_target.place(x=400,y=490)
+        # --------------- Control Speed -----------------------
+    
+        self.header_speed=Label(self,text="Điều khiển tốc độ",fg='white',bg='#f22f2f',relief='groove',
+                        width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
+        self.header_speed.place(x=900,y=160)
+        self.button_speed3=Button(self,text="Mức 3",fg='white',bg='#777777',relief='groove',cursor='hand2',command=lambda :self.speed(3,"20 m/s"),
+                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
+        self.button_speed3.place(x=945,y=215)
+        self.button_speed2=Button(self,text="Mức 2",fg='white',bg='#9b9b9b',relief='groove',cursor='hand2',command=lambda :self.speed(2,"15 m/s"),
+                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
+        self.button_speed2.place(x=945,y=265)
+        self.button_speed1=Button(self,text="Mức 1",fg='white',bg='#bcbbbb',relief='groove',cursor='hand2',command=lambda :self.speed(1,"10 m/s"),
+                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
+        self.button_speed1.place(x=945,y=315)
+        self.button_speed0=Button(self,text="Dừng lại",fg='white',bg='#c1bfbf',relief='groove',cursor='hand2',command=lambda :self.speed(0,"Stop"),
+                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
+        self.button_speed0.place(x=945,y=365)
         # Update frame
         self.update_frame1_realtime()
         self.update_label_location_target()
-       
+    def speed(self,a,text):
+        global speed_id
+        default_value = '{"speed":%d}'%(a)
+        client.publish("esp8266/speed",payload=default_value)
+        print(text)
+        # speed_id=text
+        # self.speed1.config(text=speed_id)
     def update_label_location_target(self):
         global Latitude_target,Longitude_target,target_id
         if target_id==0:
-            self.Entry_Latitude_Target.delete(0,'end')
-            self.Entry_Longitude_Target.delete(0,'end')
+            self.Entry_Lat_Long_Target.delete(0,'end')
+            # self.Entry_Longitude_Target.delete(0,'end')
+            Latitude_target=""
+            Longitude_target=""
             target_id=1
-        Latitude_target=self.Entry_Latitude_Target.get() 
-        Longitude_target=self.Entry_Longitude_Target.get()
-        # new_element = {"Latitude": Latitude_target, "Longitude": Longitude_target}
-        # Thêm phần tử mới vào mảng
-        # Location_array.append(new_element)
+        data_target = self.Entry_Lat_Long_Target.get() 
+        if data_target is not None:
+            # data_target = self.Entry_Latitude_Target.get() 
+            parts = data_target.split()
+            try:  # Kiểm tra xem danh sách có phần tử nào không trước khi truy cập
+                Latitude_target=parts[0]
+                Longitude_target=parts[1]
+            except: 
+                print("Error: The Latitude string does not contain any parts after splitting.")
         self.after(3000,self.update_label_location_target)
 
     def update_frame1_realtime(self):
@@ -302,8 +336,8 @@ class Frame2(tk.Frame):
         self.map_widget.place(relx=0.49, rely=0.5, anchor=CENTER)
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
         #----------------------Show location - Real time------------------------
-        self.map_widget.add_right_click_menu_command(label="",command=self.add_marker_event,
-                                                pass_coords=True)
+        self.map_widget.add_right_click_menu_command(label="xóa mục tiêu",command=self.clear_marker_event,
+                                                pass_coords=False)
         self.update_location_map()
         self.update_location_target()
         self.update_realtime_frame2()
@@ -324,59 +358,50 @@ class Frame2(tk.Frame):
     def update_location_target(self):
         global latitude_values,longitude_values,target_id
         global Latitude_target,Longitude_target
-        print(Latitude_target,Longitude_target)
+        # print(Latitude_target,Longitude_target)
         # address = tkintermapview.convert_address_to_coordinates(Location_target)
         if Latitude_target and Longitude_target is not None:
-            Latitude_string = Latitude_target.strip() 
-            Longitude_string = Longitude_target.strip()
-
-            if Latitude_string !="0.0" and Longitude_string != "0.0":  # Kiểm tra xem chuỗi có giá trị không
-                try:
-                    print(Latitude_string,Longitude_string)
-                    Latitude_target_f = float(Latitude_string)
-                    Longitude_target_f = float(Longitude_string)
-                    # self.marker2.set_text("Điểm mục tiêu")
-                    self.marker2=self.map_widget.set_marker(Latitude_target_f,Longitude_target_f,text="Điểm mục tiêu")
-                    # update distance values
-                    self.distance_2_point=hs.haversine((Latitude_target_f,Longitude_target_f),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
-                    self.Distance.config(text=self.distance_2_point)
-                    self.path_1 = self.map_widget.set_path([(Latitude_target_f,Longitude_target_f), (latitude_values,longitude_values)])
-
-                    # if Longitude_target_f <100 or Latitude_target_f <10:
-                    #     self.marker2.delete()
-                    # Load file âm thanh
-                    if self.distance_2_point <= 1.0:
-                        # self.marker2.delete()
-                        self.map_widget.delete_all_marker()
-                        self.map_widget.delete_all_path()
-                        playsound('Audio/Audio_MucTieu.wav')
-                        target_id=0
-                        self.Distance.config(text="Hoàn thành")
-                    # Tiếp tục xử lý với Longitude_target_f ở đây
-                except ValueError:
-                    print("Không thể chuyển đổi chuỗi thành số float.")
+            try:
+                # if Latitude_target and Longitude_target is not None:  # Kiểm tra xem chuỗi có giá trị không
+                #     try:
+                print(Latitude_target,Longitude_target)
+                Latitude_target_f = float(Latitude_target)
+                Longitude_target_f = float(Longitude_target)
+                # self.marker2.set_text("Điểm mục tiêu")
+                self.marker2=self.map_widget.set_marker(Latitude_target_f,Longitude_target_f,text="Điểm mục tiêu")
+                # update distance values
+                self.distance_2_point=hs.haversine((Latitude_target_f,Longitude_target_f),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
+                self.Distance.config(text=self.distance_2_point)
+                self.path_1 = self.map_widget.set_path([(Latitude_target_f,Longitude_target_f), (latitude_values,longitude_values)])
+                # if Longitude_target_f <100 or Latitude_target_f <10:
+                #     self.marker2.delete()
+                # Load file âm thanh
+                if self.distance_2_point <= 1.0:
+                    # self.marker2.delete()
+                    self.map_widget.delete_all_marker()
+                    self.map_widget.delete_all_path()
+                    playsound('Audio/Audio_MucTieu.wav')
+                    target_id=0
+                    self.Distance.config(text="Hoàn thành")
+                # Tiếp tục xử lý với Longitude_target_f ở đây
+            # except ValueError:
+            #     print("Không thể chuyển đổi chuỗi thành số float.")
+                        
+            except:
+                print("Wait")
+                self.map_widget.delete_all_marker()
         else:
             target_id=1
             self.Distance.config(text="")
         self.after(3000,self.update_location_target)
-        
-    # def clear_target_on_map(self):
-    #     global target_id 
-    #     self.map_widget.delete_all_marker()
-    #     target_id=0
-
-    def add_marker_event(self,coords):
-        # self.marker2.set_text("Điểm mục tiêu")
-        # self.marker3=self.map_widget.set_marker(coords[0],coords[1],text="Điểm mục tiêu")
-        # # update distance values
-        # self.distance_2_point=hs.haversine((coords[0],coords[1]),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
-        # self.Distance.config(text=self.distance_2_point)
-        # if self.distance_2_point <= 1.0:
-        #     # self.marker2.hide_image(True)
-        #     self.marker3.delete()
-        #     playsound('Audio/Audio_MucTieu.wav')
-        #     # self.Distance.config(text="Hoàn thành")
-        return coords
+    def clear_path(self):
+        self.map_widget.delete_all_path()
+    def clear_marker_event(self):
+        global target_id 
+        target_id=0
+        self.map_widget.delete_all_marker()
+        self.map_widget.delete_all_path()
+        self.Distance.config(text="")
     def update_realtime_frame2(self):
         # def update_speed(self):
         global speed_id,Location

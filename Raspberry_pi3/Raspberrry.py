@@ -12,13 +12,61 @@ import haversine as hs
 from haversine import Unit
 import time 
 import json 
-# import serial
-# import math
-# import numpy as np
-# import pynmea2
-# import gps
+import serial
+import math
+import numpy as np
+import pynmea2
+import gps
 # from gps import gps, WATCH_ENABLE
 
+
+
+
+# ===========================================================connect to  MQTT======================================================
+
+## /*MQTT Broker Connection Details*/
+mqtt_broker = "ae501b5ee3194ca682bd67e257459478.s1.eu.hivemq.cloud"
+mqtt_username = "RainWay System"
+mqtt_password = "012301230123aA#"
+mqtt_port = 8883
+mqtt_topic_1 = "esp8266/Location_data"
+
+def on_connect(client, userdata, flags, rc, properties=None):
+    print("CONNACK received with code %s." % rc)
+    # subscribe 1 topic 
+    global status_connect
+    status_connect = rc
+    client.subscribe(mqtt_topic_1)
+# Callback function khi nhận được tin nhắn từ MQTT Broker
+def on_message(client, userdata, message):
+    print("Received message '" 
+        + str(message.payload.decode("utf-8")) 
+        + "' on topic '"+ message.topic 
+        + "' with QoS " + str(message.qos))
+    data = str(message.payload.decode("utf-8"))
+    
+# #------------------------------------------------------ Update data when receive data from cloud ------------------------------------------
+
+
+# client_id is the given name of the client 
+client = paho.Client(paho.CallbackAPIVersion.VERSION2)
+# connect to MQTT
+client.on_connect = on_connect
+
+# enable TLS for secure connection
+client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
+# set username and password
+client.username_pw_set(mqtt_username,mqtt_password)
+# connect to HiveMQ Cloud on port 8883 (default for MQTT)
+client.connect(mqtt_broker,mqtt_port)
+# setting callbacks, use separate functions like above for better visibility
+client.on_message = on_message
+client.loop_start()
+
+#=============================================================================================================================
+
+
+#======================================================= Đọc Tín hiệu GPS ====================================================
 
 # #----------------------------config GPS------------------------
  
@@ -27,72 +75,14 @@ import json
 # # Neo 6M  RX -----> Raspberry pi TX (gpio 14) //Not required in our case
 # # Neo 6M  TX -----> Raspberry pi RX (gpio 15)
 
+# # // connect with serial GPS 
+ser = serial.Serial('/dev/serial0', 9600, timeout=1)    
+latitude_values = None
+longitude_values = None
+speed_values =None
+heading =None
+Location =""
 
-# global Longitude_target, latitude_values
-# connect with serial ESP
-# ser_control = serial.Serial('/dev/ttyACM1', 115200, timeout=5)   
-# # // Send char start to ESP
-# ser_control.write(b'$')                                         
-# // connect with serial GPS 
-# // Send char start to GPS
-# ser_gps.write(b'$')                                         
-
-# ===========================================================connect to  MQTT======================================================
-
-# ## /*MQTT Broker Connection Details*/
-# mqtt_broker = "ae501b5ee3194ca682bd67e257459478.s1.eu.hivemq.cloud"
-# mqtt_username = "RainWay System"
-# mqtt_password = "012301230123aA#"
-# mqtt_port = 8883
-# mqtt_topic_1 = "esp8266/Location_data"
-
-# def on_connect(client, userdata, flags, rc, properties=None):
-#     print("CONNACK received with code %s." % rc)
-#     # subscribe 1 topic 
-#     global status_connect
-#     status_connect = rc
-#     client.subscribe(mqtt_topic_1)
-# # Callback function khi nhận được tin nhắn từ MQTT Broker
-# def on_message(client, userdata, message):
-#     print("Received message '" 
-#         + str(message.payload.decode("utf-8")) 
-#         + "' on topic '"+ message.topic 
-#         + "' with QoS " + str(message.qos))
-#     data = str(message.payload.decode("utf-8"))
-    
-# #------------------------------------------------------ Update data when receive data from cloud ------------------------------------------
-
-# # client_id is the given name of the client 
-# client = paho.Client(paho.CallbackAPIVersion.VERSION2)
-# # connect to MQTT
-# client.on_connect = on_connect
-
-# # enable TLS for secure connection
-# client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
-# # set username and password
-# client.username_pw_set(mqtt_username,mqtt_password)
-# # connect to HiveMQ Cloud on port 8883 (default for MQTT)
-# client.connect(mqtt_broker,mqtt_port)
-# # setting callbacks, use separate functions like above for better visibility
-# client.on_message = on_message
-# client.loop_start()
-
-#=============================================================================================================================
-
-
-#======================================================= Đọc Tín hiệu GPS ====================================================
-
-# CONFIG GPIO FOR GPS CONNECT RASPI PI 3
-# ser_gps = serial.Serial('/dev/ttyACM0', 9600, timeout=5)
-# CONFIG GPS 
-# session = gps.gps(mode=gps.WATCH_ENABLE)
-
-# session = gps(mode=WATCH_ENABLE)
-# latitude_values = None
-# longitude_values = None
-# speed_values =None
-# heading =None
-# Location =""
 report = {
                         'class':'TPV',
                         'lat': 20.0,
@@ -151,37 +141,34 @@ class RootApplication(tk.Tk):
     def update_data_gps(self):
         # self.report = session.next()
         print("Đang lấy thông tin GPS...")
+        global latitude_values,longitude_values,speed,heading,Location
         try:
-                # Lấy dữ liệu từ GPS
-                # self.report = self.session.next()
-                # Kiểm tra nếu báo cáo chứa thông tin vị trí
-                if report['class'] == 'TPV':
-                    global latitude_values,longitude_values,speed,heading,Location
-                    # Kiểm tra và in ra dữ liệu
-                    if report['lat'] is not None and report['lon'] is not None:
-                        # Lấy thông tin kinh độ 
-                        # # latitude_values = self.report.lat
-                        # latitude_values = report['lat']
-                        # # Lấy thông tin vĩ độ
-                        # # longitude_values = self.report.lon
-                        # longitude_values = report['lon']
-                        # # Lấy thông tin tốc độ
-                        # speed = getattr(report, 'speed', None)
-                        # # Lấy thông tin hướng
-                        # heading = getattr(report, 'track', None)
-                        adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
-                        Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
-                        self.frame2.update_realtime_frame2()
-                    else:
-                        print("Dữ liệu không hợp lệ hoặc không có tín hiệu GPS.")
+            # Đọc dữ liệu từ cổng serial UART
+            data = ser.readline().decode('utf-8', errors='ignore')
+            
+            # Kiểm tra xem dữ liệu có phải là chuỗi NMEA không
+            if data.startswith('$GPGGA'):
+                try:
+                    # Phân tích chuỗi NMEA
+                    msg = pynmea2.parse(data)
+                    
+                    # Trích xuất và in kinh độ, vĩ độ
+                    latitude_values = msg.latitude
+                    longitude_values = msg.longitude
+                    adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
+                    Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
+                    self.frame2.update_realtime_frame2()
                     self.after(3000,self.update_data_gps)
+                except pynmea2.ParseError as e:
+                    print("Lỗi parsing:", e)
+        except UnicodeDecodeError:
+            print("Không giải mã được tin.")
         except KeyError:
             pass
         except KeyboardInterrupt:
             print("Đã dừng chương trình.")
         except StopIteration:
             print("GPSD đã dừng.")
-        
         
 #========================================================= Frame 2:  Show map ==========================================================
         
@@ -248,8 +235,8 @@ class Frame2(tk.Frame):
 
         self.map_widget = tkintermapview.TkinterMapView(self, width=750, height=400, corner_radius=0)
         self.map_widget.place(relx=0.5, rely=0.7, anchor=S)
-        # self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
-        self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png") 
+        self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
+        # self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png") 
 
         # self.marker2=self.map_widget.set_position(20,106,text="Điểm mục tiêu",marker=True)
 
@@ -286,7 +273,7 @@ class Frame2(tk.Frame):
         self.Address.config(text=Location)
         # Update the position on the map
         self.marker1= self.map_widget.set_position(latitude_values, longitude_values,text="Điểm mục tiêu",marker=True)
-        self.marker1.(15)
+        # self.marker1.(15)
         # self.marker1.set_text("Vị trí tàu")
         latitude_values+=0.1
         longitude_values+=0.1

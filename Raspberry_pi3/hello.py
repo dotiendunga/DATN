@@ -5,16 +5,12 @@ from serial import Serial
 root = tk.Tk()
 root.title("GPS Tracker")
 
-# Thiết lập kích thước cho khung hiển thị
+# Thiết lập kích thước cho cửa sổ
 root.geometry("400x200")
 
-# Tạo một khung để chứa dữ liệu GPS
-gps_frame = tk.Frame(root)
-gps_frame.pack(expand=True, padx=10, pady=10)
-
 # Tạo một nhãn để hiển thị dữ liệu GPS
-gps_label = tk.Label(gps_frame, text="Waiting for GPS data...", font=("Arial", 14), justify="left")
-gps_label.pack(expand=True)
+gps_label = tk.Label(root, text="Waiting for GPS data...", font=("Arial", 14), justify="left")
+gps_label.pack(expand=True, padx=10, pady=10)
 
 # Kết nối với mô-đul GPS qua cổng serial UART
 ser = Serial("/dev/ttyS0", 9600, timeout=1)

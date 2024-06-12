@@ -12,10 +12,13 @@ import haversine as hs
 from haversine import Unit
 import time 
 import json 
-import serial
-import math
-import numpy as np
-import pynmea2
+# import serial
+# import math
+# import numpy as np
+# import pynmea2
+# import gps
+# from gps import gps, WATCH_ENABLE
+
 
 # #----------------------------config GPS------------------------
  
@@ -30,52 +33,83 @@ import pynmea2
 # ser_control = serial.Serial('/dev/ttyACM1', 115200, timeout=5)   
 # # // Send char start to ESP
 # ser_control.write(b'$')                                         
-# # // connect with serial GPS 
-# ser_gps = serial.Serial('/dev/ttyACM0', 115200, timeout=5)  
-# # // Send char start to GPS
+# // connect with serial GPS 
+# // Send char start to GPS
 # ser_gps.write(b'$')                                         
 
-# #---------------------------connect to  MQTT---------------------------------
+# ===========================================================connect to  MQTT======================================================
 
-## /*MQTT Broker Connection Details*/
-mqtt_broker = "ae501b5ee3194ca682bd67e257459478.s1.eu.hivemq.cloud"
-mqtt_username = "RainWay System"
-mqtt_password = "012301230123aA#"
-mqtt_port = 8883
-mqtt_topic_1 = "esp8266/Location_data"
+# ## /*MQTT Broker Connection Details*/
+# mqtt_broker = "ae501b5ee3194ca682bd67e257459478.s1.eu.hivemq.cloud"
+# mqtt_username = "RainWay System"
+# mqtt_password = "012301230123aA#"
+# mqtt_port = 8883
+# mqtt_topic_1 = "esp8266/Location_data"
 
-def on_connect(client, userdata, flags, rc, properties=None):
-    print("CONNACK received with code %s." % rc)
-    # subscribe 1 topic 
-    global status_connect
-    status_connect = rc
-    client.subscribe(mqtt_topic_1)
-# Callback function khi nhận được tin nhắn từ MQTT Broker
-def on_message(client, userdata, message):
-    print("Received message '" 
-        + str(message.payload.decode("utf-8")) 
-        + "' on topic '"+ message.topic 
-        + "' with QoS " + str(message.qos))
-    data = str(message.payload.decode("utf-8"))
+# def on_connect(client, userdata, flags, rc, properties=None):
+#     print("CONNACK received with code %s." % rc)
+#     # subscribe 1 topic 
+#     global status_connect
+#     status_connect = rc
+#     client.subscribe(mqtt_topic_1)
+# # Callback function khi nhận được tin nhắn từ MQTT Broker
+# def on_message(client, userdata, message):
+#     print("Received message '" 
+#         + str(message.payload.decode("utf-8")) 
+#         + "' on topic '"+ message.topic 
+#         + "' with QoS " + str(message.qos))
+#     data = str(message.payload.decode("utf-8"))
     
-    #------------------------------ Update data when receive data from cloud -------------------------------------
+# #------------------------------------------------------ Update data when receive data from cloud ------------------------------------------
 
-# client_id is the given name of the client 
-client = paho.Client(paho.CallbackAPIVersion.VERSION2)
-# connect to MQTT
-client.on_connect = on_connect
+# # client_id is the given name of the client 
+# client = paho.Client(paho.CallbackAPIVersion.VERSION2)
+# # connect to MQTT
+# client.on_connect = on_connect
 
-# enable TLS for secure connection
-client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
-# set username and password
-client.username_pw_set(mqtt_username,mqtt_password)
-# connect to HiveMQ Cloud on port 8883 (default for MQTT)
-client.connect(mqtt_broker,mqtt_port)
-# setting callbacks, use separate functions like above for better visibility
-client.on_message = on_message
+# # enable TLS for secure connection
+# client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
+# # set username and password
+# client.username_pw_set(mqtt_username,mqtt_password)
+# # connect to HiveMQ Cloud on port 8883 (default for MQTT)
+# client.connect(mqtt_broker,mqtt_port)
+# # setting callbacks, use separate functions like above for better visibility
+# client.on_message = on_message
+# client.loop_start()
 
-client.loop_start()
+#=============================================================================================================================
+
+
+#======================================================= Đọc Tín hiệu GPS ====================================================
+
+# CONFIG GPIO FOR GPS CONNECT RASPI PI 3
+# ser_gps = serial.Serial('/dev/ttyACM0', 9600, timeout=5)
+# CONFIG GPS 
+# session = gps.gps(mode=gps.WATCH_ENABLE)
+
+# session = gps(mode=WATCH_ENABLE)
+# latitude_values = None
+# longitude_values = None
+# speed_values =None
+# heading =None
+# Location =""
+report = {
+                        'class':'TPV',
+                        'lat': 20.0,
+                        'lon': 106.0,
+                        'speed':20,
+                        'track':'huong tay'
+}
 # #--------------------------------------------------------------  Main  -------------------------------------
+# latitude_values = self.report.lat
+latitude_values = report['lat']
+# Lấy thông tin vĩ độ
+# longitude_values = self.report.lon
+longitude_values = report['lon']
+# Lấy thông tin tốc độ
+speed = getattr(report, 'speed', None)
+# Lấy thông tin hướng
+heading = getattr(report, 'track', None)
 
 class RootApplication(tk.Tk):
     def __init__(self):
@@ -97,7 +131,7 @@ class RootApplication(tk.Tk):
         self.label_Bg=tk.Label(self,image=self.img)
         self.label_Bg.place(x=0,y=0)
         
-        #------------------------- frame2 -------------------------------
+        #------------------------- frame_show map in app -------------------------------
         self.frame2 = Frame2(self)
         self.frame2.config(bg="white",width=1180,height=550)
         self.frame2.place(x=52,y=146)
@@ -107,18 +141,54 @@ class RootApplication(tk.Tk):
         self.label_time.place(x=50,y=125)
         #--------------------------- Func -------------------------------
         self.update_time()
+        self.update_data_gps()
     def update_time(self):
         # Real time """datetime(year, month, day[, hour[, minute[, second[, microsecond[,tzinfo]]]]])\
         global current_time
         current_time = datetime.now().strftime('%Y-%m-%d  %H:%M:%S')
         self.label_time.config(text=current_time)
         self.label_time.after(1000,self.update_time)
-#------------------------- Frame 2:  Show map -----------------------------------------------------------
+    def update_data_gps(self):
+        # self.report = session.next()
+        print("Đang lấy thông tin GPS...")
+        try:
+                # Lấy dữ liệu từ GPS
+                # self.report = self.session.next()
+                # Kiểm tra nếu báo cáo chứa thông tin vị trí
+                if report['class'] == 'TPV':
+                    global latitude_values,longitude_values,speed,heading,Location
+                    # Kiểm tra và in ra dữ liệu
+                    if report['lat'] is not None and report['lon'] is not None:
+                        # Lấy thông tin kinh độ 
+                        # # latitude_values = self.report.lat
+                        # latitude_values = report['lat']
+                        # # Lấy thông tin vĩ độ
+                        # # longitude_values = self.report.lon
+                        # longitude_values = report['lon']
+                        # # Lấy thông tin tốc độ
+                        # speed = getattr(report, 'speed', None)
+                        # # Lấy thông tin hướng
+                        # heading = getattr(report, 'track', None)
+                        adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
+                        Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
+                        self.frame2.update_realtime_frame2()
+                    else:
+                        print("Dữ liệu không hợp lệ hoặc không có tín hiệu GPS.")
+                    self.after(3000,self.update_data_gps)
+        except KeyError:
+            pass
+        except KeyboardInterrupt:
+            print("Đã dừng chương trình.")
+        except StopIteration:
+            print("GPSD đã dừng.")
+        
+        
+#========================================================= Frame 2:  Show map ==========================================================
         
 class Frame2(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        #------------------- header location detail ---------------------------------------------------
+        #----------------------------------------------- header location detail -------------------------------------------------
         # Header latitude
         self.header2_1= Label(self,text="Kinh Độ",fg='white',bg="#4660ac",width=12,
                               borderwidth=0,border=1,justify=CENTER,font=("arial", 12, "bold"),relief='groove',pady=2)
@@ -139,8 +209,12 @@ class Frame2(tk.Frame):
         self.header2_5= Label(self,text="Khoảng cách",fg='white',bg="#4660ac",width=15,
                               borderwidth=0,border=1,justify=CENTER,font=("arial", 12, "bold"),relief='groove',pady=2)
         self.header2_5.place(x=1032,y=260)
+        #Header heading:
+        self.header2_6= Label(self,text="Hướng tàu",fg='white',bg="#4660ac",width=15,
+                              borderwidth=0,border=1,justify=CENTER,font=("arial", 12, "bold"),relief='groove',pady=2)
+        self.header2_6.place(x=1032,y=360)
 
-        #------------------- values location details ---------------------------------------------------
+        #--------------------------------------------------- values  details ---------------------------------------------------
 
         # latitude values
         self.latitude= Label(self,text="Kinh Độ",fg='Gray',width=17,
@@ -151,9 +225,9 @@ class Frame2(tk.Frame):
                               borderwidth=0,border=1,justify=CENTER,font=("arial", 10, "bold"),relief='groove',pady=2)
         self.Longitude.place(x=0,y=260)
         # speed values
-        self.speed= Label(self,text="Tốc Độ",fg='Gray',width=17,
+        self.Speed = Label(self,text="Tốc Độ",fg='Gray',width=17,
                           borderwidth=0,border=1,justify=CENTER,font=("arial", 10, "bold"),relief='groove',pady=2)
-        self.speed.place(x=0,y=330)
+        self.Speed.place(x=0,y=330)
          # address values
         self.Address= Label(self,text="Địa chỉ",fg='Gray',width=21,
                             borderwidth=0,border=1,justify=CENTER,font=("arial", 9, "bold"),relief='groove',pady=2)
@@ -162,33 +236,22 @@ class Frame2(tk.Frame):
         self.Distance= Label(self,text="Khoảng cách",fg='Gray',width=21,
                              borderwidth=0,border=1,justify=CENTER,font=("arial", 9, "bold"),relief='groove',pady=2)
         self.Distance.place(x=1032,y=290)
+        # heading values
+        self.Heading= Label(self,text="Hướng tàu",fg='Gray',width=17,
+                              borderwidth=0,border=1,justify=CENTER,font=("arial", 10, "bold"),relief='groove',pady=2)
+        self.Heading.place(x=1032,y=390)
         # # Distance values
         # self.button_clear=Button(self,text="Xóa mục tiêu",fg='white',bg='#4660ac',relief='groove',cursor='hand2',command=self.clear_target_on_map,
         #                 width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
         # self.button_clear.place(x=1032,y=350)
-        
-        # ----------------------------------------------Button_Control-----------------------------------------------
-        
-        self.button_speed0=Button(self,text="stop",fg='white',bg='#777777',relief='groove',cursor='hand2',command=self.speed,
-                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
-        self.button_speed0.place(x=500,y=500)
-        self.button_speed2=Button(self,text="T",fg='white',bg='#9b9b9b',relief='groove',cursor='hand2',command=self.speed,
-                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
-        self.button_speed2.place(x=500,y=400)
-        self.button_speed3=Button(self,text="R",fg='white',bg='#bcbbbb',relief='groove',cursor='hand2',command=self.speed,
-                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
-        self.button_speed3.place(x=600,y=450)
-        self.button_speed3=Button(self,text="L",fg='white',bg='#c1bfbf',relief='groove',cursor='hand2',command=self.speed,
-                        width=15,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
-        self.button_speed3.place(x=400,y=450)
-
         #---------------------Map view-------------------------------------------------------
 
         self.map_widget = tkintermapview.TkinterMapView(self, width=750, height=400, corner_radius=0)
         self.map_widget.place(relx=0.5, rely=0.7, anchor=S)
-        self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
+        # self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
+        self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png") 
 
-        self.marker2=self.map_widget.set_position(20,106,text="Điểm mục tiêu",marker=True)
+        # self.marker2=self.map_widget.set_position(20,106,text="Điểm mục tiêu",marker=True)
 
         # #----------------------Show location - Real time------------------------
         # self.map_widget.add_right_click_menu_command(label="Add Marker",
@@ -197,9 +260,6 @@ class Frame2(tk.Frame):
         # self.update_location_map()
         # self.update_location_target()
         # self.update_realtime_frame2()
-    def speed(self):
-        # ser_control.write(b'$') 
-        print("Helloooo {level}")
     # def clear_target_on_map(self):
         # self.map_widget.delete_all_marker()
 
@@ -214,14 +274,23 @@ class Frame2(tk.Frame):
     #         self.marker3.delete()
     #         # playsound('Audio/Audio_MucTieu.wav')
     #         # self.Distance.config(text="Hoàn thành")
-            
-    # def update_realtime_frame2(self):
-    #     # def update_speed(self):
-    #     global speed_id,Location
-    #     self.speed.config(text=speed_id)
-    #     # show địa chỉ dựa trên tọa độ.
-    #     self.Address.config(text=Location)
-    #     self.after(3000,self.update_realtime_frame2) 
+    def delete_marker1(self):
+            self.marker1.delete()
+    def update_realtime_frame2(self):
+        # def update_speed(self):
+        global speed, latitude_values, longitude_values, heading
+        self.Speed.config(text=speed)
+        self.latitude.config(text= latitude_values)
+        self.Longitude.config(text =longitude_values)
+        self.Heading.config(text = heading)
+        self.Address.config(text=Location)
+        # Update the position on the map
+        self.marker1= self.map_widget.set_position(latitude_values, longitude_values,text="Điểm mục tiêu",marker=True)
+        self.marker1.(15)
+        # self.marker1.set_text("Vị trí tàu")
+        latitude_values+=0.1
+        longitude_values+=0.1
+        # self.after(2000,self.delete_marker1())
 if __name__ == "__main__":
     app = RootApplication()
     app.mainloop()

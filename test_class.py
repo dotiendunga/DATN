@@ -72,7 +72,7 @@ def on_message(client, userdata, message):
     adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
     Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
     # clear path
-    app.frame2.clear_path()
+    # app.frame2.clear_path()
     #------------------------------ Update data when receive data from cloud -------------------------------------
     # receive data from esp -> notification Distance between Sation and Train :
     # Ha Noi Station (Id: 1), Hai Duong Staion(Id: 2), Hai Phong Station (Id :3 ) 
@@ -251,9 +251,9 @@ class Frame1(tk.Frame):
         global speed_id
         default_value = '{"speed":%d}'%(a)
         client.publish("esp8266/speed",payload=default_value)
-        print(text)
-        # speed_id=text
-        # self.speed1.config(text=speed_id)
+        # print(text)
+        speed_id=text
+        self.speed1.config(text=speed_id)
     def update_label_location_target(self):
         global Latitude_target,Longitude_target,target_id
         if target_id==0:
@@ -372,14 +372,14 @@ class Frame2(tk.Frame):
                 # update distance values
                 self.distance_2_point=hs.haversine((Latitude_target_f,Longitude_target_f),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
                 self.Distance.config(text=self.distance_2_point)
-                self.path_1 = self.map_widget.set_path([(Latitude_target_f,Longitude_target_f), (latitude_values,longitude_values)])
+                # self.path_1 = self.map_widget.set_path([(Latitude_target_f,Longitude_target_f), (latitude_values,longitude_values)])
                 # if Longitude_target_f <100 or Latitude_target_f <10:
                 #     self.marker2.delete()
                 # Load file âm thanh
                 if self.distance_2_point <= 1.0:
                     # self.marker2.delete()
                     self.map_widget.delete_all_marker()
-                    self.map_widget.delete_all_path()
+                    # self.map_widget.delete_all_path()
                     playsound('Audio/Audio_MucTieu.wav')
                     target_id=0
                     self.Distance.config(text="Hoàn thành")
@@ -394,13 +394,13 @@ class Frame2(tk.Frame):
             target_id=1
             self.Distance.config(text="")
         self.after(3000,self.update_location_target)
-    def clear_path(self):
-        self.map_widget.delete_all_path()
+    # def clear_path(self):
+    #     self.map_widget.delete_all_path()
     def clear_marker_event(self):
         global target_id 
         target_id=0
         self.map_widget.delete_all_marker()
-        self.map_widget.delete_all_path()
+        # self.map_widget.delete_all_path()
         self.Distance.config(text="")
     def update_realtime_frame2(self):
         # def update_speed(self):

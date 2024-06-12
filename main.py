@@ -77,16 +77,58 @@
 #     app = RootApplication()
 #     app.mainloop()
 
-string = '0.0011694 0.0027680'
-parts = string.split()  # Tách chuỗi thành danh sách các phần
+# string = '0.0011694 0.0027680'
+# parts = string.split()  # Tách chuỗi thành danh sách các phần
 
-# In các phần đã tách
-print(parts)  # Output: ['0.0011694', '0.0027680']
+# # In các phần đã tách
+# print(ppart1 = parts[0]
+# print(type(part1))  # Output: 0.0011694
 
-# Phần thứ nhất
-part1 = parts[0]
-print(type(part1))  # Output: 0.0011694
+# # Phần thứ hai
+# part2 = parts[1]
+# print(part2)  # Output: 0.0027680
+# arts)  # Output: ['0.0011694', '0.0027680']
 
-# Phần thứ hai
-part2 = parts[1]
-print(part2)  # Output: 0.0027680
+# # Phần thứ nhất
+
+import tkinter as tk
+import webbrowser
+import folium
+
+def show_map(latitude, longitude):
+    # Tạo bản đồ Folium
+    m = folium.Map(location=[latitude, longitude], zoom_start=10)
+    
+    # Thêm đánh dấu vị trí lên bản đồ
+    folium.Marker([latitude, longitude], popup='Your Location').add_to(m)
+    
+    # Lưu bản đồ vào tệp HTML
+    m.save('map.html')
+    
+    # Mở trình duyệt để hiển thị bản đồ
+    webbrowser.open('map.html')
+
+def refresh_page():
+    # Đóng cửa sổ hiện tại
+    root.destroy()
+    # Tạo cửa sổ mới
+    create_main_window()
+
+def create_main_window():
+    global root
+    root = tk.Tk()
+    root.title("GPS Location Viewer")
+    
+    # Tạo nút để hiển thị vị trí
+    show_location_button = tk.Button(root, text="Show Location", command=lambda: show_map(10.7809, 106.6297))
+    show_location_button.pack(pady=10)
+    
+    # Tạo nút để làm mới trang
+    refresh_button = tk.Button(root, text="Refresh Page", command=refresh_page)
+    refresh_button.pack(pady=10)
+    
+    root.mainloop()
+
+if __name__ == "__main__":
+    create_main_window()
+    

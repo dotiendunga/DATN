@@ -11,7 +11,7 @@ def parse_gps(line):
                 "latitude": msg.latitude,
                 "longitude": msg.longitude,
                 "spd_over_grnd": msg.spd_over_grnd,  # Tốc độ qua mặt đất (knots)
-                "true_course": msg.true_course,
+                "true_course": get_direction(msg.true_course),
                 "direction": direction,
                 "datestamp": msg.datestamp
             })

@@ -105,7 +105,7 @@ class RootApplication(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Train System")
-        self.geometry("1280x720+150+20")
+        self.geometry("1280x720")
         self.resizable(False,False)
         self.configure(bg='gray')
         self.title("Điều khiển Tàu Hỏa")

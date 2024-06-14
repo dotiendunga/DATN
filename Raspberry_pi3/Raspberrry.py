@@ -281,3 +281,4 @@ class Frame2(tk.Frame):
 if __name__ == "__main__":
     app = RootApplication()
     app.mainloop()
+    app.destroy()

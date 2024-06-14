@@ -14,7 +14,7 @@ import time
 # import simpleaudio as sa
 # from playsound import playsound
 import json 
-from receive_from_esp import*
+# from receive_from_esp import*
 # from data import*
 
 # from data import get_data_status
@@ -26,8 +26,8 @@ longitude_values=0.0
 #Location after transfer Latitude - Longitude to Addresss
 Location=""
 # Location target
-Latitude_target=""
-Longitude_target=""
+Latitude_target=0.0
+Longitude_target=0.0
 Location_click=""
 # target_id 
 target_id=1
@@ -67,8 +67,8 @@ def on_message(client, userdata, message):
         + "' with QoS " + str(message.qos))
     data = json.loads(str(message.payload.decode("utf-8")) )
     global latitude_values,longitude_values,Location,turn_values,train_status
-    latitude_values=data["Latitude"]
-    longitude_values=data["Longitude"]
+    # latitude_values=data["latitude"]
+    # longitude_values=data["longitude"]
     adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
     Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
     # clear path

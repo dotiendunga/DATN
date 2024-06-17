@@ -44,7 +44,7 @@ def on_message(client, userdata, message):
         + "' on topic '"+ message.topic 
         + "' with QoS " + str(message.qos))
     data = str(message.payload.decode("utf-8"))
-    
+
 # #------------------------------------------------------ Update data when receive data from cloud ------------------------------------------
 
 

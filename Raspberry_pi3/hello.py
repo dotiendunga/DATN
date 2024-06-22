@@ -15,8 +15,7 @@ import queue
 import json
 
 
-#Using queue to getdata from thread gps 
-data_queue = queue.Queue()
+
 
 
 # ===========================================================connect to  MQTT======================================================
@@ -28,52 +27,6 @@ mqtt_password = "012301230123aA#"
 mqtt_port = 8883
 mqtt_topic_1 = "esp8266/Location_data"
 
-def on_connect(client, userdata, flags, rc, properties=None):
-    print("CONNACK received with code %s." % rc)
-    # subscribe 1 topic 
-    global status_connect
-    status_connect = rc
-    client.subscribe(mqtt_topic_1)
-# Callback function khi nhận được tin nhắn từ MQTT Broker
-def on_message(client, userdata, message):
-    print("Received message '" 
-        + str(message.payload.decode("utf-8")) 
-        + "' on topic '"+ message.topic 
-        + "' with QoS " + str(message.qos))
-    data = str(message.payload.decode("utf-8"))
-# Publish data to hivemq
-def send_data_to_hivemq(time, speed, latitude, longitude, direction):
-    # Tạo một dictionary chứa thông số cần gửi
-    data = {
-        "time": time,
-        "speed": speed,
-        "latitude": latitude,
-        "longitude": longitude,
-        "direction": direction
-    }
-    # Chuyển đổi dictionary thành chuỗi JSON
-    json_data = json.dumps(data)
-    # Đẩy dữ liệu lên topic MQTT
-    client.publish(mqtt_topic_1, json_data)
-
-    
-# #------------------------------------------------------ Update data when receive data from cloud ------------------------------------------
-
-
-# client_id is the given name of the client 
-client = paho.Client(paho.CallbackAPIVersion.VERSION2)
-# connect to MQTT
-client.on_connect = on_connect
-
-# enable TLS for secure connection
-client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
-# set username and password
-client.username_pw_set(mqtt_username,mqtt_password)
-# connect to HiveMQ Cloud on port 8883 (default for MQTT)
-client.connect(mqtt_broker,mqtt_port)
-# setting callbacks, use separate functions like above for better visibility
-client.on_message = on_message
-client.loop_start()
 #============================================================ CONFIG FOR GPS ======================================================
 Real_time=""
 Location=""
@@ -81,39 +34,90 @@ Latitude_values=0.0
 Longitude_values=0.0
 direction =""
 Speed =0.0
+#Using queue to getdata from thread gps 
+data_queue = queue.Queue()
+
+class MQTTClient():
+    def __init__(self, broker, port, username, password, topic):
+        self.broker = broker
+        self.port = port
+        self.username = username
+        self.password = password
+        self.topic = topic
+        # client_id is the given name of the client 
+        self.client = paho.Client(paho.CallbackAPIVersion.VERSION2)
+        self.client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
+        self.client.on_connect = self.on_connect
+        self.client.on_message = self.on_message
+        self.client.username_pw_set(self.username, self.password)
+        self.client.connect(self.broker, self.port)
+        self.client.loop_start()
+    def on_connect(self,client, userdata, flags, rc, properties=None):
+        print("CONNACK received with code %s." % rc)
+        self.client.subscribe(self.topic)
+    # Callback function khi nhận được tin nhắn từ MQTT Broker
+    def on_message(self,client, userdata, message):
+        print("Received message '" 
+            + str(message.payload.decode("utf-8")) 
+            + "' on topic '"+ message.topic 
+            + "' with QoS " + str(message.qos))
+        global data_queue
+        data_queue.put(str(message.payload.decode("utf-8")))
+    def get_direction(true_course):
+        if true_course is None:
+            return "Unknown"
+        directions = [
+            "Bắc", "Bắc Đông Bắc", "Đông Bắc", "Đông Đông Bắc",
+            "Đông", "Đông Đông Nam", "Đông Nam", "Nam Đông Nam",
+            "Nam", "Nam Tây Nam", "Tây Nam", "Tây Tây Nam",
+            "Tây", "Tây Tây Bắc", "Tây Bắc", "Bắc Tây Bắc"
+        ]
+        idx = int((true_course + 11.25) % 360 / 22.5)
+        return directions[idx]
+    # Publish data to hivemq
+    # def send_data_to_hivemq(self,time, speed, latitude, longitude, direction):
+    # # Tạo một dictionary chứa thông số cần gửi
+    #     data = {
+    #         "time": time,
+    #         "speed": speed,
+    #         "latitude": latitude,
+    #         "longitude": longitude,
+    #         "direction": direction
+    #     }
+    #     # Chuyển đổi dictionary thành chuỗi JSON
+    #     json_data = json.dumps(data)
+    #     # Đẩy dữ liệu lên topic MQTT
+    #     self.client.publish(self.topic, json_data)
+    def start(self):
+        self.client.loop_start()
+    def close_hivemq(self):
+        self.client.disconnect()
+
 # ================================================================================================================================
 def parse_gps(line):
     try:
         if line.startswith('$GPGGA') or line.startswith('$GPRMC') or line.startswith('$GPGSV'):  # Kiểm tra xem dòng dữ liệu là thông điệp GGA, RMC hoặc GSV không
             msg = pynmea2.parse(line)
+            #print(msg)
             if isinstance(msg, pynmea2.types.talker.RMC) and msg.latitude !=0.0 and msg.longitude !=0.0:
                 data_queue.put(msg)
+                
     except pynmea2.ParseError as e:
         print(f"Parse error: {e}")   
     except KeyboardInterrupt:
         print("Dừng đọc dữ liệu GPS.")
-def get_direction(true_course):
-    if true_course is None:
-        return "Unknown"
-    directions = [
-        "Bắc", "Bắc Đông Bắc", "Đông Bắc", "Đông Đông Bắc",
-        "Đông", "Đông Đông Nam", "Đông Nam", "Nam Đông Nam",
-        "Nam", "Nam Tây Nam", "Tây Nam", "Tây Tây Nam",
-        "Tây", "Tây Tây Bắc", "Tây Bắc", "Bắc Tây Bắc"
-    ]
-    idx = int((true_course + 11.25) % 360 / 22.5)
-    return directions[idx]
-
+        
 def read_gps():
     serial_port = serial.Serial('/dev/ttyS0', 9600, timeout=5)  # Mở cổng serial
+    # Gửi lệnh cấu hình tần số cập nhật của GPS module thành 5 giây (0.2 Hz)
+    ubx_command = b"\xB5\x62\x06\x08\x06\x00\xB8\x0B\x01\x00\x01\x00\xD9\x41"
+    serial_port.write(ubx_command)
     while True:
         try:
             line = serial_port.readline().decode('unicode_escape')  # Đọc dòng dữ liệu từ cổng serial
             parse_gps(line)  # Gọi hàm parse dữ liệu GPS
-            time.sleep(1)
         except Exception as e:
             print("Exception in read_gps:", e)
-            time.sleep(1)
             
         
 class RootApplication(tk.Tk):
@@ -129,7 +133,7 @@ class RootApplication(tk.Tk):
         img = PhotoImage(file='image/eye.png')
         self.tk.call('wm', 'iconphoto', self._w, img)
         # BackGround:
-        self.image = Image.open(r"image/control.png")
+        self.image = Image.open(r"image/Bground.png")
         self.img = ImageTk.PhotoImage(self.image)
         # image_path = "image/Bground.png"
         # self.img = PhotoImage(file=image_path)
@@ -137,8 +141,8 @@ class RootApplication(tk.Tk):
         self.label_Bg.place(x=0,y=0)
         #------------------------- frame_show map in app -------------------------------
         self.frame2 = Frame2(self)
-        self.frame2.config(bg="white",width=1180,height=550)
-        self.frame2.place(x=52,y=146)
+        self.frame2.config(bg="white",width=1180,height=600)
+        self.frame2.place(x=50,y=93)
 
 #========================================================= Frame 2:  Show map ==========================================================
         
@@ -169,15 +173,15 @@ class Frame2(tk.Frame):
         # Header address
         self.header2_4= Label(self,text="Địa chỉ",fg='white',bg="#4660ac",width=15,
                               borderwidth=0,border=1,justify=CENTER,font=("arial", 12, "bold"),relief='groove',pady=2)
-        self.header2_4.place(x=1035,y=140)
+        self.header2_4.place(x=1040,y=140)
         # Header distance: 
         self.header2_5= Label(self,text="Khoảng cách",fg='white',bg="#4660ac",width=15,
                               borderwidth=0,border=1,justify=CENTER,font=("arial", 12, "bold"),relief='groove',pady=2)
-        self.header2_5.place(x=1035,y=240)
+        self.header2_5.place(x=1040,y=240)
         #Header heading:
         self.header2_6= Label(self,text="Hướng tàu",fg='white',bg="#4660ac",width=15,
                               borderwidth=0,border=1,justify=CENTER,font=("arial", 12, "bold"),relief='groove',pady=2)
-        self.header2_6.place(x=1035,y=310)
+        self.header2_6.place(x=1040,y=310)
 
         #--------------------------------------------------- values  details ---------------------------------------------------
         
@@ -200,55 +204,66 @@ class Frame2(tk.Frame):
          # address values
         self.Address= Label(self,text="Địa chỉ",fg='Gray',width=19,
                             borderwidth=0,border=1,justify=CENTER,font=("arial", 9, "bold"),relief='groove',pady=2)
-        self.Address.place(x=1035,y=170)
+        self.Address.place(x=1040,y=170)
          # Distance values
         self.Distance= Label(self,text="Khoảng cách",fg='Gray',width=19,
                              borderwidth=0,border=1,justify=CENTER,font=("arial", 9, "bold"),relief='groove',pady=2)
-        self.Distance.place(x=1035,y=270)
+        self.Distance.place(x=1040,y=270)
         # heading values
         self.Heading= Label(self,text="Hướng tàu",fg='Gray',width=19,
                               borderwidth=0,border=1,justify=CENTER,font=("arial", 10, "bold"),relief='groove',pady=2)
-        self.Heading.place(x=1035,y=340)
+        self.Heading.place(x=1040,y=340)
         #---------------------Map view-------------------------------------------------------
 
-        self.map_widget = tkintermapview.TkinterMapView(self, width=880, height=550, corner_radius=0)
-        self.map_widget.place(relx=0.5, rely=0.99, anchor=S)
+        self.map_widget = tkintermapview.TkinterMapView(self, width=880, height=600, corner_radius=0)
+        self.map_widget.place(relx=0.5, rely=0.5, anchor='center')
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
+        self.update_time()
         self.update_realtime_frame2()
     def update_realtime_frame2(self):
         while not self.data_queue.empty():
             # def update_speed(self):
             self.data = self.data_queue.get()
             global Latitude_values,Longitude_values,Speed,direction,Location,Real_time
-            direction = get_direction(self.data.true_course) if self.data.true_course is not None else "Unknown"
+            direction = mqtt_client.get_direction(self.data.true_course) if self.data.true_course is not None else "Unknown"
             Speed = self.data.spd_over_grnd
             adr = tkintermapview.convert_coordinates_to_address(self.data.latitude,self.data.longitude)
             Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
             Latitude_values = self.data.latitude
             Longitude_values= self.data.longitude
-            Real_time = time = self.data.timestamp
             self.Speed.config(text=Speed)
             self.latitude.config(text= Latitude_values)
             self.Longitude.config(text = Longitude_values )
             self.Heading.config(text = direction)
             self.Address.config(text=Location)
-            self.Time.config(text= Real_time)
+            print(Speed,Latitude_values,Longitude_values)
             #push data to hivemq
-            send_data_to_hivemq(str(Real_time), str(Speed), str(Latitude_values), str(Longitude_values), str(direction))
+            mqtt_client.send_data_to_hivemq(str(Real_time), str(Speed), str(Latitude_values), str(Longitude_values), self.data.true_course)
             # Xóa marker cũ nếu tồn tại
             if self.marker1 is not None:
-                self.map_widget.delete()
+                self.marker1.delete()
             # Hiển thị marker mới
             self.marker1 = self.map_widget.set_position(self.data.latitude, self.data.longitude, text="Điểm mục tiêu", marker=True)
         self.after(500,self.update_realtime_frame2)
+    def update_time(self):
+        global Real_time
+        Real_time = datetime.now().strftime('%H:%M:%S')
+        self.Time.config(text= Real_time)
+        self.after(1000,self.update_time)
         
 if __name__ == "__main__":
-    gps_thread =threading.Thread(target=read_gps)
-    # Khởi tạo và bắt đầu luồng
-    gps_thread.start()
-    app = RootApplication()
-    app.mainloop()
-    gps_thread.join()
+    try:
+            mqtt_client = MQTTClient(mqtt_broker, mqtt_port, mqtt_username, mqtt_password, mqtt_topic_1)
+            mqtt_client.start()
+            gps_thread =threading.Thread(target=read_gps)
+            gps_thread.start()
+            app = RootApplication()
+            app.mainloop()
+    except KeyboardInterrupt:
+            print("Dừng đọc dữ liệu GPS.")
+            mqtt_client.close_hivemq()
+            gps_thread.join()
+            app.destroy()
     
     
 

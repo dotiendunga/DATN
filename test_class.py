@@ -20,10 +20,19 @@ import threading
 #---------------- initializing the variables    -----------------------
 #Using queue to getdata from thread gps 
 data_queue = queue.Queue()
+# Khai báo một mutex
+mutex = threading.Lock()
+queue_flag = False
 # Realtime data latitude - longitude from cloud
 latitude_values=0.0
 longitude_values=0.0
 speed_values=0.0
+distance_2_point=0.0
+direction = ""
+
+flag_frame1 =False
+flag_frame2 = False
+flag_frame3 = False
 # Train status  
 train_status="An Toàn"
 #Location after transfer Latitude - Longitude to Addresss
@@ -55,7 +64,7 @@ mqtt_port = 8883
 mqtt_topic_1 = "esp8266/Location_data"
 
 
-class MQTTClient():
+class MQTTClient:
     def __init__(self, broker, port, username, password, topic):
         self.broker = broker
         self.port = port
@@ -72,16 +81,32 @@ class MQTTClient():
         self.client.loop_start()
     def on_connect(self,client, userdata, flags, rc, properties=None):
         print("CONNACK received with code %s." % rc)
-        self.client.subscribe(mqtt_topic_1)
+        self.client.subscribe(self.topic)
     # Callback function khi nhận được tin nhắn từ MQTT Broker
     def on_message(self,client, userdata, message):
-        print("Received message '" 
-            + str(message.payload.decode("utf-8")) 
-            + "' on topic '"+ message.topic 
-            + "' with QoS " + str(message.qos))
-        global data_queue
-        data_queue.put(str(message.payload.decode("utf-8")))
-    def get_direction(true_course):
+        # print("Received message '" 
+        #     + str(message.payload.decode("utf-8")) 
+        #     + "' on topic '"+ message.topic 
+        #     + "' with QoS " + str(message.qos))
+        self.data = json.loads(str(message.payload.decode("utf-8")) )
+        global speed_values,longitude_values, latitude_values,direction,Location,Latitude_target,Longitude_target,train_status
+        speed_values = float(self.data["speed"])
+        longitude_values = float(self.data["longitude"])
+        latitude_values = float(self.data["latitude"])
+        train_status = "An Toàn" if speed_values < 60 else "Vượt quá tốc độ"
+        adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
+        Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
+        try:
+            direction = self.get_direction(float(self.data["direction"]))
+        except:
+            direction = "Unknown"
+            # print("Unknown")
+        # Flag
+        global flag_frame1,flag_frame2,flag_frame3
+        flag_frame1 =True
+        flag_frame2 =True
+        flag_frame3 =True       
+    def get_direction(self,true_course):
         if true_course is None:
             return "Unknown"
         directions = [
@@ -98,7 +123,10 @@ class MQTTClient():
     def start(self):
         self.client.loop_start()
     def close_hivemq(self):
+
+        self.client.loop_stop()
         self.client.disconnect()
+    
 #------------------------------ Update data when receive data from cloud -------------------------------------
 # receive data from esp -> notification Distance between Sation and Train :
 # Ha Noi Station (Id: 1), Hai Duong Staion(Id: 2), Hai Phong Station (Id :3 ) 
@@ -148,7 +176,6 @@ def playAudio():
                 time.sleep(0.1)
         else:
             pass
-    
 #--------------------------------------------------------------  Main  -------------------------------------
 
 class RootApplication(tk.Tk):
@@ -168,30 +195,93 @@ class RootApplication(tk.Tk):
         self.label_Bg=tk.Label(self,image=self.img)
         self.label_Bg.place(x=0,y=0)
         # Create frame - button frame : 3 frame 
+                # Create frame - button frame : 3 frame 
+                # Khởi tạo và bắt đầu luồng phát âm thanh
+        self.sound_thread = threading.Thread(target=playAudio, daemon=True)
+        self.sound_thread.start()
+        # Khởi tạo MQTT Client
+        self.mqtt_client = MQTTClient(mqtt_broker, mqtt_port, mqtt_username, mqtt_password, mqtt_topic_1)
+        self.frames = {}  # Dictionary to store frames
+
+        # Initialize frames
+        self.create_frames()
+        
+        self.label_time = tk.Label(self, font=('Arial', 15, 'bold'), bg="white", fg="#4660ac", borderwidth=0, 
+                                   border=0, width=18, relief='groove', justify=CENTER)
+        self.label_time.place(x=54, y=102)
+
+        #--------------------------- Func -------------------------------
+        self.update_time()
+         # Gán hàm xử lý sự kiện khi đóng cửa sổ
+        self.protocol("WM_DELETE_WINDOW", self.on_close)
+
+    def on_close(self):
+        # Đóng kết nối MQTT
+        self.mqtt_client.close_hivemq()
+
+        # Chờ cho luồng phát âm thanh kết thúc
+        self.sound_thread.join()
+
+        # Hủy ứng dụng Tkinter
+        self.destroy()
+
+    def create_frames(self):
         #------------------------- frame2 -------------------------------
         self.frame2 = Frame2(self)
-        self.frame2.config(bg="white",width=1180,height=550)
-        self.frame2.place(x=52,y=146)
-        self.button_frame1=Button(self,text="Theo dõi xe",font=('Arial', 13, 'bold'),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
-                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.frame2.tkraise())
-        self.button_frame1.place(x=881,y=100)
+        self.frames["frame2"] = self.frame2
+        self.frame2.config(bg="white", width=1180, height=550)
+        self.frame2.place(x=52, y=146)
+        self.button_frame2 = tk.Button(self, text="Theo dõi tàu", font=('Arial', 13, 'bold'), bg="white", fg="#4660ac", 
+                                       activebackground="white", cursor='hand2', borderwidth=0, border=0, width=15, 
+                                       relief='groove', justify=CENTER, command=lambda: self.raise_frame("frame2"))
+        self.button_frame2.place(x=881, y=100)
+
         #------------------------- frame3 -------------------------------
         self.frame3 = Frame3(self)
-        self.frame3.config(bg="white",width=1180,height=550)
-        self.frame3.place(x=52,y=146)
-        self.button_frame1=Button(self,text="Trang dữ liệu",font=('Arial', 13, 'bold'),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
-                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.frame3.tkraise())
-        self.button_frame1.place(x=1081,y=100)
+        self.frames["frame3"] = self.frame3
+        self.frame3.config(bg="white", width=1180, height=550)
+        self.frame3.place(x=52, y=146)
+        self.button_frame3 = tk.Button(self, text="Trang dữ liệu", font=('Arial', 13, 'bold'), bg="white", fg="#4660ac", 
+                                       activebackground="white", cursor='hand2', borderwidth=0, border=0, width=15, 
+                                       relief='groove', justify=CENTER, command=lambda: self.raise_frame("frame3"))
+        self.button_frame3.place(x=1081, y=100)
+
         #------------------------- Frame1 -------------------------------
         self.frame1 = Frame1(self)
-        self.frame1.config(bg="white",width=1180,height=550)
-        self.frame1.place(x=52,y=146)
-        self.button_frame1=Button(self,text="Trang thông tin",font=('Arial', 13, 'bold'),bg="white",fg="#4660ac",activebackground="white",cursor='hand2',
-                                  borderwidth=0,border=0,width=15,relief='groove',justify=CENTER,command=lambda: self.frame1.tkraise())
-        self.button_frame1.place(x=680,y=100)
-        self.label_time = tk.Label(self, font=('Arial', 15, 'bold'),bg="white",fg="#4660ac"
-                                   ,borderwidth=0,border=0,width=18,relief='groove',justify=CENTER)
-        self.label_time.place(x=54,y=102)
+        self.frames["frame1"] = self.frame1
+        self.frame1.config(bg="white", width=1180, height=550)
+        self.frame1.place(x=52, y=146)
+        self.button_frame1 = tk.Button(self, text="Trang thông tin", font=('Arial', 13, 'bold'), bg="white", fg="#4660ac", 
+                                       activebackground="white", cursor='hand2', borderwidth=0, border=0, width=15, 
+                                       relief='groove', justify=CENTER, command=lambda: self.raise_frame("frame1"))
+        self.button_frame1.place(x=680, y=100)
+
+    def raise_frame(self, frame_name):
+        frame = self.frames.get(frame_name)
+        if frame and frame.winfo_exists():
+            frame.tkraise()
+        else:
+            print(f"{frame_name} does not exist or has been destroyed, recreating...")
+            self.recreate_frame(frame_name)
+            frame = self.frames[frame_name]
+            frame.tkraise()
+
+    def recreate_frame(self, frame_name):
+        if frame_name == "frame1":
+            self.frame1 = Frame1(self)
+            self.frames["frame1"] = self.frame1
+            self.frame1.config(bg="white", width=1180, height=550)
+            self.frame1.place(x=52, y=146)
+        elif frame_name == "frame2":
+            self.frame2 = Frame2(self)
+            self.frames["frame2"] = self.frame2
+            self.frame2.config(bg="white", width=1180, height=550)
+            self.frame2.place(x=52, y=146)
+        elif frame_name == "frame3":
+            self.frame3 = Frame3(self)
+            self.frames["frame3"] = self.frame3
+            self.frame3.config(bg="white", width=1180, height=550)
+            self.frame3.place(x=52, y=146)
         #--------------------------- Func -------------------------------
         self.update_time()
     def update_time(self):
@@ -211,7 +301,7 @@ class Frame1(tk.Frame):
         self.label_status=Label(self,text="Trạng thái Tàu",fg='white',bg='#f22f2f',relief='groove',
                         width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
         self.label_status.place(x=29,y=160)
-        self.label_Noti=Label(self,text="Trạng thái..",fg='white',bg='#777777',relief='groove',pady=4,
+        self.label_Noti=Label(self,text="Trạng thái",fg='white',bg='#777777',relief='groove',pady=4,
                         width=17,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
         self.label_Noti.place(x=62,y=215)
         #--------------------------------------------------- Direction --------------------------------------------------------------------------------
@@ -219,7 +309,7 @@ class Frame1(tk.Frame):
         self.label_direction=Label(self,text="Hương di chuyển",fg='white',bg='#f22f2f',relief='groove',
                         width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
         self.label_direction.place(x=29,y=270)
-        self.label_show=Label(self,text="hướng",fg='white',bg='#777777',relief='groove',pady=4,
+        self.label_show=Label(self,text="hướng di chuyển",fg='white',bg='#777777',relief='groove',pady=4,
                         width=17,borderwidth=1,border=1,justify=CENTER,font=("Arial", 12, "bold"))
         self.label_show.place(x=62,y=325)
         # #------------------------------------ show Location - Speed ---------------------------------------------------------------------------------
@@ -230,14 +320,14 @@ class Frame1(tk.Frame):
         self.header1.place(x=400,y=110)
         self.header1.config(justify='center')
         # lable Location
-        self.local1= Label(self,text="Location",fg="#4660ac",width=30,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
+        self.local1= Label(self,text="Địa chỉ",fg="#4660ac",width=30,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
         self.local1.place(x=400,y=165)
         #header speed
         self.header2= Label(self,text="Tốc độ hiện tại",fg='white',bg="#4660ac",width=30,borderwidth=0,border=1,justify=CENTER,
                        font=("Arial", 15, "bold"),relief='groove',pady=5)
         self.header2.place(x=400,y=270)
         # lable Speed
-        self.speed1= Label(self,text="speed",fg="#4660ac",width=30,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
+        self.speed1= Label(self,text="Tốc độ",fg="#4660ac",width=30,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
         self.speed1.place(x=400,y=325)
          #--------------------------------------------------- Target train --------------------------------------------------------------------------
         self.Label_target=Label(self,text="Mục tiêu di chuyển",fg='white',bg="#4660ac",width=30,borderwidth=0,border=1,justify=CENTER,
@@ -246,7 +336,7 @@ class Frame1(tk.Frame):
         self.Entry_Lat_Long_Target=Entry(self,fg="#4660ac",bg="#EDEBEB",relief='flat',width=19,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"))
         self.Entry_Lat_Long_Target.place(x=550,y=435)        
         self.Label_target=Label(self,text="Kinh độ/ Vĩ độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=0,justify=CENTER,
-                       font=("Arial", 15, "bold"))
+                       font=("Arial", 14, "bold"))
         self.Label_target.place(x=400,y=435)
         # --------------- Control Speed -----------------------
     
@@ -272,45 +362,35 @@ class Frame1(tk.Frame):
         if target_id==0:
             self.Entry_Lat_Long_Target.delete(0,'end')
             # self.Entry_Longitude_Target.delete(0,'end')
-            Latitude_target=""
-            Longitude_target=""
+            Latitude_target=0.0
+            Longitude_target=0.0
             target_id=1
         data_target = self.Entry_Lat_Long_Target.get() 
         if data_target !="" and data_target is not None:
             # data_target = self.Entry_Latitude_Target.get() 
             parts = data_target.split()
             try:  # Kiểm tra xem danh sách có phần tử nào không trước khi truy cập
-                Latitude_target=parts[0]
-                Longitude_target=parts[1]
-            except: 
-                pass
-        self.after(1000,self.update_label_location_target)
+
+                Latitude_target=float(parts[0])
+                Longitude_target=float(parts[1])
+            except Exception as e:
+                print(f"An error occurred: {e}")
+        self.after(2000,self.update_label_location_target)
 
     def update_frame1_realtime(self):
-        global data_queue,latitude_values,longitude_values,train_status,speed_values,direction,Location
-        while not data_queue.empty():
-            self.data = data_queue.get()
-            speed_values = self.data['speed']
-            longitude_values =self.data['longitude']
-            latitude_values  =self.data['latitude']
-            direction = mqtt_client.get_direction(self.data['true_course']) if self.data['true_course'] is not None else "Unknown"
-            if float(speed_values) is not None:
-                train_status ="An Toàn"
-                if float(speed_values)>=60:
-                    self.header_speed_noti.config(text="Vượt quá tốc độ")
-                else:
-                    self.header_speed_noti.config(text="An Toàn")
-            # Update status 
-            self.label_Noti.config(text=train_status)
-            # update_label_location
-            adr = tkintermapview.convert_coordinates_to_address(self.data.latitude,self.data.longitude)
-            Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
-            self.local1.config(text=Location)
-            # update_label_direction 
-            self.label_show.config(text=direction)
-            # update_speed()
-            self.speed1.config(text=speed_values)
-        self.after(500,self.update_frame1_realtime)
+        global train_status,Location,speed_values,longitude_values,latitude_values,direction,flag_frame1
+        # self.update_label_location_target()
+        if flag_frame1 is True:
+            flag_frame1 = False
+            try:    
+                self.header_speed_noti.config(text=train_status)
+                self.label_Noti.config(text=train_status)
+                self.local1.config(text=Location)
+                self.label_show.config(text=direction)
+                self.speed1.config(text=speed_values)
+            except Exception as e:
+                print(f"An error occurred in frame1 : {e}")
+        self.after(500, self.update_frame1_realtime)
 
 #------------------------- Frame 2:  Show map -----------------------------------------------------------
         
@@ -335,7 +415,7 @@ class Frame2(tk.Frame):
         self.header2_5= Label(self,text="Khoảng cách",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_5.place(x=1032,y=280)
         # Header direction 
-        self.header2_6  =Label(self,text="Khoảng cách",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
+        self.header2_6  =Label(self,text="Hướng di chuyển",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_6.place(x=1032,y=350)
         #------------------- values location details ---------------------------------------------------
         # latitude values
@@ -360,7 +440,9 @@ class Frame2(tk.Frame):
 
         self.map_widget = tkintermapview.TkinterMapView(self, width=900, height=550, corner_radius=0)
         self.map_widget.place(relx=0.49, rely=0.5, anchor=CENTER)
+        # self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png")  # OpenStreetMap (default)
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
+        # self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google satellite
         #----------------------Show location - Real time------------------------
         self.map_widget.add_right_click_menu_command(label="xóa mục tiêu",command=self.clear_marker_event,
                                                 pass_coords=True)
@@ -369,8 +451,10 @@ class Frame2(tk.Frame):
 
     # update location in map
     def update_location_map(self):
-        global data_queue,latitude_values,longitude_values,train_status,speed_values,direction,Location
-        while latitude_values and longitude_values and speed_values and direction and Location is not None:
+        global data_queue,latitude_values,longitude_values,train_status,speed_values,direction,flag_frame2,Location
+        if flag_frame2 == True:
+            flag_frame2 =False
+            # print(latitude_values,longitude_values)
             self.Address.config(text=Location)
             # update_label_direction 
             self.Direction.config(text=direction)
@@ -378,41 +462,42 @@ class Frame2(tk.Frame):
             self.speed.config(text=speed_values)
             self.latitude.config(text=latitude_values)
             self.Longitude.config(text=longitude_values)
-            if self.marker1 is not None:
-                self.marker1.delete()
-            self.marker1= self.map_widget.set_position(latitude_values, longitude_values,text="Vị trí tàu",marker=True)
+            try:
+                if self.marker1 is not None:
+                    self.marker1.delete()
+                self.marker1= self.map_widget.set_position(latitude_values, longitude_values,marker=True)
+                # self.map_widget.set_path()
+            except Exception as e:
+                print(e)
+        else:
+            pass
         # Update the position on the map
-        self.after(1000,self.update_location_map)
+        self.after(500,self.update_location_map)
     def update_location_target(self):
-        global latitude_values,longitude_values,target_id,Latitude_target,Longitude_target,turn_values
+        global latitude_values,longitude_values,target_id,Latitude_target,Longitude_target,turn_values,distance_2_point,mutex
         # print(Latitude_target,Longitude_target)
         # address = tkintermapview.convert_address_to_coordinates(Location_target)
         if Latitude_target and Longitude_target is not None:
             try:
-                # if Latitude_target and Longitude_target is not None:  # Kiểm tra xem chuỗi có giá trị không
-                #     try:
-                print(Latitude_target,Longitude_target)
-                Latitude_target_f = float(Latitude_target)
-                Longitude_target_f = float(Longitude_target)
-                # self.marker2.set_text("Điểm mục tiêu")
-                self.marker2=self.map_widget.set_position(Latitude_target_f,Longitude_target_f,text="Điểm mục tiêu",marker=True)
+                # Khai báo một mutex
+                # mutex.acquire()
+                distance_2_point=hs.haversine((Latitude_target,Longitude_target),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
+                marker2=self.map_widget.set_marker(Latitude_target,Longitude_target,text="Điểm mục tiêu")
                 # update distance values
-                self.distance_2_point=hs.haversine((Latitude_target_f,Longitude_target_f),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
-                self.Distance.config(text=self.distance_2_point)
+                self.Distance.config(text=distance_2_point)
                 # Load file âm thanh
-                if self.distance_2_point <= 1.0 :
+                if distance_2_point <= 1.0 :
                     # self.marker2.delete()
-                    self.marker2.delete()
+                    marker2.delete()
                     # self.map_widget.delete_all_path()
                     if turn_values == 1:
                         playsound('Audio/Audio_MucTieu.wav')
                     target_id=0
                     self.Distance.config(text="Hoàn thành")
-            except:
-                print("Wait")
-        else:
-            target_id=1
-            self.Distance.config(text="")
+                # mutex.release()
+            except Exception as e:
+                print(e)
+                target_id=1
         self.after(2000,self.update_location_target)
     # def clear_path(self):
     #     self.map_widget.delete_all_path()
@@ -423,7 +508,7 @@ class Frame2(tk.Frame):
             self.map_widget.delete_all_marker()
             self.Distance.config(text="")
         except Exception as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred in frame2: {e}")
         
 #----------------------------------------------------- Frame 3: Data Receive ---------------------------------------------------------------------
         
@@ -433,12 +518,12 @@ class Frame3(tk.Frame):
         # Tạo Treeview
         self.tree = ttk.Treeview(self, columns=("Time", "Latitude", "Longtitud","Speed","Location","Status"), show="headings")
         self.tree.place(width=1000,height=500,x=0,y=20)
-        self.tree.heading("Speed", text="Speed")
-        self.tree.heading("Latitude", text="Latitude")
-        self.tree.heading("Longtitud", text="Longtitud")
-        self.tree.heading("Location", text="Location")
-        self.tree.heading("Status", text="Status")
-        self.tree.heading("Time", text="Time")
+        self.tree.heading("Speed", text="Tốc độ")
+        self.tree.heading("Latitude", text="Kinh độ")
+        self.tree.heading("Longtitud", text="Vĩ độ")
+        self.tree.heading("Location", text="Địa chỉ hiện tại")
+        self.tree.heading("Status", text="Trạng thái")
+        self.tree.heading("Time", text="Thời gian")
         # Thiết lập chiều rộng cột
         self.tree.column("Latitude",anchor="center", width=50)
         self.tree.column("Longtitud", anchor="center",width=50)
@@ -461,10 +546,11 @@ class Frame3(tk.Frame):
     # update data to table:
     def update_data(self):
         # Dữ liệu mẫu
-        global current_time,Location,latitude_values,longitude_values,train_status,speed_values
+        global current_time,Location,latitude_values,longitude_values,train_status,speed_values,flag_frame3
         # Loại bỏ ký tự xuống dòng (\n)
-        Location_no_newline = Location.replace("\n", "")
-        if latitude_values and longitude_values is not None:
+        if flag_frame3 == True :
+            flag_frame3 =False
+            Location_no_newline = Location.replace("\n", "")
             data = [str(current_time), str(latitude_values), str(longitude_values),str(speed_values),Location_no_newline,train_status]
             self.tree.insert("", "end", values=data)
         self.after(1000,self.update_data)      
@@ -485,26 +571,18 @@ class Frame3(tk.Frame):
             # Lưu workbook thành file Excel tại đường dẫn đã chọn
             try:
                 self.wb.save(file_path)
-                messagebox.showinfo("Thông báo", "Dữ liệu đã được lưu vào file Excel thành công!")
+                # messagebox.showinfo("Thông báo", "Dữ liệu đã được lưu vào file Excel thành công!")
+                # print(f"Dữ liệu đã được lưu vào file Excel thành công!")
             except Exception as e:
                 messagebox.showerror("Lỗi", f"Có lỗi xảy ra khi lưu file: {e}")
+                # print("Lỗi", f"Có lỗi xảy ra khi lưu file: {e}")
     def clear_data_received(self):
         for item in self.tree.get_children(): # used self.tree instead
             self.tree.delete(item)
             
 if __name__ == "__main__":
-    try:
-        sound_thread =threading.Thread(target=playAudio)
-        # Khởi tạo và bắt đầu luồng
-        sound_thread.start()
-        mqtt_client = MQTTClient(mqtt_broker, mqtt_port, mqtt_username, mqtt_password, mqtt_topic_1)
-        mqtt_client.start()
-        app = RootApplication()
-        app.mainloop()
-    except KeyboardInterrupt:
-        mqtt_client.close_hivemq()
-        sound_thread.join()
-        app.destroy()
+    app = RootApplication()
+    app.mainloop()
         
         
         

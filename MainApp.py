@@ -4,18 +4,17 @@ import tkintermapview
 from tkinter import ttk
 from PIL import ImageTk, Image
 from datetime import datetime
-import paho.mqtt.client as paho
-from paho import mqtt
 from tkinter import filedialog, messagebox
 from openpyxl import Workbook
+import time 
+import queue
+import threading
+from MQTT_class import*
+from Play_audio import playsound
 import haversine as hs   
 from haversine import Unit
-import time 
 import json 
-import queue
-import pygame
-import threading
-
+import tkintermapview
 
 #---------------- initializing the variables    -----------------------
 #Using queue to getdata from thread gps 
@@ -54,59 +53,47 @@ train_status="An Toàn"
 turn_values=0
 #Các điểm mục tiêu 
 # Location_array=[] 
-#---------------------------connect to  MQTT---------------------------------
+
+
+#=========================================   connect to  MQTT   ===========================================
 
 # /*MQTT Broker Connection Details*/
 mqtt_broker = "ae501b5ee3194ca682bd67e257459478.s1.eu.hivemq.cloud"
 mqtt_username = "RainWay System"
 mqtt_password = "012301230123aA#"
 mqtt_port = 8883
-mqtt_topic_1 = "esp8266/Location_data"
-
-
-class MQTTClient:
-    def __init__(self, broker, port, username, password, topic):
-        self.broker = broker
-        self.port = port
-        self.username = username
-        self.password = password
-        self.topic = topic
-        # client_id is the given name of the client 
-        self.client = paho.Client(paho.CallbackAPIVersion.VERSION2)
-        self.client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
-        self.client.on_connect = self.on_connect
-        self.client.on_message = self.on_message
-        self.client.username_pw_set(self.username, self.password)
-        self.client.connect(self.broker, self.port)
-        self.client.loop_start()
-    def on_connect(self,client, userdata, flags, rc, properties=None):
-        print("CONNACK received with code %s." % rc)
-        self.client.subscribe(self.topic)
-    # Callback function khi nhận được tin nhắn từ MQTT Broker
-    def on_message(self,client, userdata, message):
-        # print("Received message '" 
-        #     + str(message.payload.decode("utf-8")) 
-        #     + "' on topic '"+ message.topic 
-        #     + "' with QoS " + str(message.qos))
-        self.data = json.loads(str(message.payload.decode("utf-8")) )
-        global speed_values,longitude_values, latitude_values,direction,Location,Latitude_target,Longitude_target,train_status
-        speed_values = float(self.data["speed"])
-        longitude_values = float(self.data["longitude"])
-        latitude_values = float(self.data["latitude"])
-        train_status = "An Toàn" if speed_values < 60 else "Vượt quá tốc độ"
-        adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
-        Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
+mqtt_topic_1 = "Train/Location_data"
+        
+class CustomMQTTClient(MQTTClient):
+    def on_message(self, client, userdata, message):
+        # Gọi phương thức on_message của lớp cha nếu muốn giữ lại phần xử lý cũ
         try:
-            direction = self.get_direction(float(self.data["direction"]))
-        except:
-            direction = "Unknown"
-            # print("Unknown")
-        # Flag
-        global flag_frame1,flag_frame2,flag_frame3
-        flag_frame1 =True
-        flag_frame2 =True
-        flag_frame3 =True       
-    def get_direction(self,true_course):
+            super().on_message(client, userdata, message)
+            self.data = json.loads(str(message.payload.decode("utf-8")) )
+            global speed_values,longitude_values, latitude_values,direction,Location,Latitude_target,Longitude_target,train_status
+            speed_values = float(self.data["speed"])
+            longitude_values = float(self.data["longitude"])
+            latitude_values = float(self.data["latitude"])
+            train_status = "An Toàn" if speed_values < 60 else "Vượt quá tốc độ"
+            adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
+            Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
+            try:
+                direction = self.get_direction(float(self.data["direction"]))
+            except:
+                direction = "Unknown"
+                # print("Unknown")
+            # Flag
+            global flag_frame1,flag_frame2,flag_frame3
+            flag_frame1 =True
+            flag_frame2 =True
+            flag_frame3 =True   
+        except Exception as e:
+            print(f"An error occurred: {e}")
+        # Thêm phần xử lý mới
+        print("Custom on_message processing")
+        # # Ví dụ: in ra thêm thông tin từ message
+        # print(f"Received message with payload: {message.payload.decode('utf-8')}")  
+    def get_direction(self, true_course):
         if true_course is None:
             return "Unknown"
         directions = [
@@ -117,55 +104,17 @@ class MQTTClient:
         ]
         idx = int((true_course + 11.25) % 360 / 22.5)
         return directions[idx]
-    # Publish data to hivemq
-    def send_data_to_hivemq(self,mqtt_topic,json_data):
-        self.client.publish(mqtt_topic,json_data)
-    def start(self):
-        self.client.loop_start()
-    def close_hivemq(self):
+# ==============================================================================================================
 
-        self.client.loop_stop()
-        self.client.disconnect()
-    
-#------------------------------ Update data when receive data from cloud -------------------------------------
-# receive data from esp -> notification Distance between Sation and Train :
-# Ha Noi Station (Id: 1), Hai Duong Staion(Id: 2), Hai Phong Station (Id :3 ) 
-# distance Train - Station
-# ======================== Play sound ============================================
-def playsound(file_path):
-    try:
-        # Khởi tạo Pygame
-        pygame.init()
-
-        # Tạo một mixer
-        pygame.mixer.init()
-
-        # Load file âm thanh
-        sound = pygame.mixer.Sound(file_path)
-
-        # Phát lại âm thanh
-        sound.play()
-
-        # Đợi cho âm thanh kết thúc
-        while pygame.mixer.get_busy():
-            pygame.time.Clock().tick(10)
-        # Đóng Pygame
-       
-        pygame.mixer.quit()
-        pygame.quit()
-    except Exception as e:
-        print("Error:", e)
-        
+# =================================================== Play sound ==============================================
 def playAudio():
     global latitude_values,longitude_values,turn_values
-    # while latitude_values!= 0.0 and longitude_values != 0.0:
     while True:
         if turn_values == 1:
             if hs.haversine((latitude_values,longitude_values),(21.02439,105.84122),unit=Unit.KILOMETERS) <=1 :
                 # Load file âm thanh
                 playsound('Audio/Audio_HaNoi.wav')
                 time.sleep(0.1)
-                
             if hs.haversine((latitude_values,longitude_values),(20.94663,106.33057),unit=Unit.KILOMETERS) <=1 :
                 # Load file âm thanh
                 playsound( 'Audio/Audio_HaiDuong.wav')
@@ -176,7 +125,9 @@ def playAudio():
                 time.sleep(0.1)
         else:
             pass
-#--------------------------------------------------------------  Main  -------------------------------------
+# ===============================================================================================================
+
+# =====================================================  Main App  ==============================================
 
 class RootApplication(tk.Tk):
     def __init__(self):
@@ -193,23 +144,18 @@ class RootApplication(tk.Tk):
         self.image = Image.open(r"image/Bground-min.png")
         self.img = ImageTk.PhotoImage(self.image)
         self.label_Bg=tk.Label(self,image=self.img)
-        self.label_Bg.place(x=0,y=0)
-        # Create frame - button frame : 3 frame 
-                # Create frame - button frame : 3 frame 
-                # Khởi tạo và bắt đầu luồng phát âm thanh
+        self.label_Bg.place(x=0,y=0) 
+        # Khởi tạo và bắt đầu luồng phát âm thanh
         self.sound_thread = threading.Thread(target=playAudio, daemon=True)
         self.sound_thread.start()
         # Khởi tạo MQTT Client
-        self.mqtt_client = MQTTClient(mqtt_broker, mqtt_port, mqtt_username, mqtt_password, mqtt_topic_1)
+        self.mqtt_client = CustomMQTTClient(mqtt_broker, mqtt_port, mqtt_username, mqtt_password, mqtt_topic_1)
         self.frames = {}  # Dictionary to store frames
-
         # Initialize frames
         self.create_frames()
-        
         self.label_time = tk.Label(self, font=('Arial', 15, 'bold'), bg="white", fg="#4660ac", borderwidth=0, 
                                    border=0, width=18, relief='groove', justify=CENTER)
         self.label_time.place(x=54, y=102)
-
         #--------------------------- Func -------------------------------
         self.update_time()
          # Gán hàm xử lý sự kiện khi đóng cửa sổ
@@ -291,54 +237,54 @@ class RootApplication(tk.Tk):
         self.label_time.config(text=current_time)
         self.label_time.after(1000,self.update_time)
         
-#------------------------------------------- Frame 1: Trang điều khiển xe ---------------------------------------------------
+#==================================================== Frame 1: Trang điều khiển xe ===================================================
         
 class Frame1(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
-        #-------------------------------- Train status --------------------------------------------------------------------------------
-
+        #-------------------------------- Train status -----------------------------------------------------------------------------
         self.label_status=Label(self,text="Trạng thái Tàu",fg='white',bg='#f22f2f',relief='groove',
                         width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
         self.label_status.place(x=29,y=160)
         self.label_Noti=Label(self,text="Trạng thái",fg='white',bg='#777777',relief='groove',pady=4,
                         width=17,borderwidth=1,border=1,justify=CENTER,font=("Arial", 13, "bold"))
         self.label_Noti.place(x=62,y=215)
-        #--------------------------------------------------- Direction --------------------------------------------------------------------------------
-
+        #--------------------------------------------------- Direction --------------------------------------------------------------
         self.label_direction=Label(self,text="Hương di chuyển",fg='white',bg='#f22f2f',relief='groove',
                         width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
         self.label_direction.place(x=29,y=270)
         self.label_show=Label(self,text="hướng di chuyển",fg='white',bg='#777777',relief='groove',pady=4,
                         width=17,borderwidth=1,border=1,justify=CENTER,font=("Arial", 12, "bold"))
         self.label_show.place(x=62,y=325)
-        # #------------------------------------ show Location - Speed ---------------------------------------------------------------------------------
-         
+        #------------------------------------ show Location - Speed ----------------------------------------------------------------
         # Header label
         self.header1= Label(self,text="Địa chỉ hiện tại",fg='white',bg="#4660ac",width=30,borderwidth=0,border=1,justify=CENTER,
                        font=("Arial", 15, "bold"),relief='groove',pady=5)
         self.header1.place(x=400,y=110)
         self.header1.config(justify='center')
         # lable Location
-        self.local1= Label(self,text="Địa chỉ",fg="#4660ac",width=30,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
+        self.local1= Label(self,text="Địa chỉ",fg="#4660ac",width=30,borderwidth=1,border=1,justify=CENTER,
+                           font=("Arial", 15, "bold"),pady=5)
         self.local1.place(x=400,y=165)
         #header speed
         self.header2= Label(self,text="Tốc độ hiện tại",fg='white',bg="#4660ac",width=30,borderwidth=0,border=1,justify=CENTER,
                        font=("Arial", 15, "bold"),relief='groove',pady=5)
         self.header2.place(x=400,y=270)
         # lable Speed
-        self.speed1= Label(self,text="Tốc độ",fg="#4660ac",width=30,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
+        self.speed1= Label(self,text="Tốc độ",fg="#4660ac",width=30,borderwidth=1,border=1,justify=CENTER,
+                           font=("Arial", 15, "bold"),pady=5)
         self.speed1.place(x=400,y=325)
-         #--------------------------------------------------- Target train --------------------------------------------------------------------------
+         #-------------------------------------- Target train --------------------------------------------------------------------------
         self.Label_target=Label(self,text="Mục tiêu di chuyển",fg='white',bg="#4660ac",width=30,borderwidth=0,border=1,justify=CENTER,
                        font=("Arial", 15, "bold"),pady=5)
         self.Label_target.place(x=400,y=380)
-        self.Entry_Lat_Long_Target=Entry(self,fg="#4660ac",bg="#EDEBEB",relief='flat',width=19,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"))
+        self.Entry_Lat_Long_Target=Entry(self,fg="#4660ac",bg="#EDEBEB",relief='flat',width=19,borderwidth=1,border=1,justify=CENTER
+                                         ,font=("Arial", 15, "bold"))
         self.Entry_Lat_Long_Target.place(x=550,y=435)        
         self.Label_target=Label(self,text="Kinh độ/ Vĩ độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=0,justify=CENTER,
-                       font=("Arial", 14, "bold"))
+                                        font=("Arial", 14, "bold"))
         self.Label_target.place(x=400,y=435)
-        # --------------- Control Speed -----------------------
+        # --------------------------------------- Status Speed ---------------------------------------------------------------------------
     
         self.header_speed=Label(self,text="Cảnh báo tốc độ",fg='white',bg='#f22f2f',relief='groove',
                         width=20,borderwidth=1,border=1,justify=CENTER,font=("Arial", 15, "bold"),pady=5)
@@ -346,7 +292,7 @@ class Frame1(tk.Frame):
         self.header_speed_noti = Label(self,text="Cảnh báo",fg='white',bg='#777777',relief='groove',pady=4,
                         width=17,borderwidth=1,border=1,justify=CENTER,font=("Arial", 12, "bold"))
         self.header_speed_noti.place(x=933,y=215)
-        # -------------------------------------------------- TURN ON /OFF notification -------------------------------------------------------------------
+        # -------------------------------------------------- TURN ON /OFF notification ----------------------------------------------------
         # Change Turn values:
         self.turn_values_tk = tk.IntVar()
         self.turn_values_tk.set(1)
@@ -376,7 +322,7 @@ class Frame1(tk.Frame):
             except Exception as e:
                 print(f"An error occurred: {e}")
         self.after(2000,self.update_label_location_target)
-
+        
     def update_frame1_realtime(self):
         global train_status,Location,speed_values,longitude_values,latitude_values,direction,flag_frame1
         # self.update_label_location_target()
@@ -398,6 +344,7 @@ class Frame2(tk.Frame):
     def __init__(self, master):
         super().__init__(master)
         self.marker1 =None
+        self.marker2 =None
         #------------------- header location detail ---------------------------------------------------
         # Header latitude
         self.header2_1= Label(self,text="Kinh Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
@@ -481,14 +428,14 @@ class Frame2(tk.Frame):
             try:
                 # Khai báo một mutex
                 # mutex.acquire()
-                distance_2_point=hs.haversine((Latitude_target,Longitude_target),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
-                marker2=self.map_widget.set_marker(Latitude_target,Longitude_target,text="Điểm mục tiêu")
+                self.distance_2_point=hs.haversine((Latitude_target,Longitude_target),(latitude_values,longitude_values),unit=Unit.KILOMETERS)
+                self.marker2=self.map_widget.set_marker(Latitude_target,Longitude_target,text="Điểm mục tiêu")
                 # update distance values
                 self.Distance.config(text=distance_2_point)
                 # Load file âm thanh
-                if distance_2_point <= 1.0 :
+                if self.distance_2_point <= 1.0 :
                     # self.marker2.delete()
-                    marker2.delete()
+                    self.marker2.delete()
                     # self.map_widget.delete_all_path()
                     if turn_values == 1:
                         playsound('Audio/Audio_MucTieu.wav')
@@ -499,8 +446,6 @@ class Frame2(tk.Frame):
                 print(e)
                 target_id=1
         self.after(2000,self.update_location_target)
-    # def clear_path(self):
-    #     self.map_widget.delete_all_path()
     def clear_marker_event(self,event=None):
         global target_id 
         try:
@@ -571,11 +516,8 @@ class Frame3(tk.Frame):
             # Lưu workbook thành file Excel tại đường dẫn đã chọn
             try:
                 self.wb.save(file_path)
-                # messagebox.showinfo("Thông báo", "Dữ liệu đã được lưu vào file Excel thành công!")
-                # print(f"Dữ liệu đã được lưu vào file Excel thành công!")
             except Exception as e:
                 messagebox.showerror("Lỗi", f"Có lỗi xảy ra khi lưu file: {e}")
-                # print("Lỗi", f"Có lỗi xảy ra khi lưu file: {e}")
     def clear_data_received(self):
         for item in self.tree.get_children(): # used self.tree instead
             self.tree.delete(item)
@@ -583,6 +525,3 @@ class Frame3(tk.Frame):
 if __name__ == "__main__":
     app = RootApplication()
     app.mainloop()
-        
-        
-        

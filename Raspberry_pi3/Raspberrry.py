@@ -73,6 +73,7 @@ class MQTTClient():
     def start(self):
         self.client.loop_start()
     def close_hivemq(self):
+        self.client.loop_stop()
         self.client.disconnect()
 
 # ================================================================================================================================
@@ -103,8 +104,8 @@ def read_gps():
     try:
             serial_port = serial.Serial('/dev/ttyS0', 9600, timeout=8)  # Mở cổng serial
             # Gửi lệnh cấu hình tần số cập nhật của GPS module thành 5 giây (0.2 Hz)
-            #ubx_command = b"\xB5\x62\x06\x08\x06\x00\xB8\x0B\x01\x00\x01\x00\xD9\x41"
-            ubx_command = b"\xB5\x62\x06\x08\x06\x00\xC8\x00\x01\x00\x01\x00\xD3\x8C"
+            ubx_command = b"\xB5\x62\x06\x08\x06\x00\xB8\x0B\x01\x00\x01\x00\xD9\x41"
+            #ubx_command = b"\xB5\x62\x06\x08\x06\x00\xC8\x00\x01\x00\x01\x00\xD3\x8C"
             serial_port.write(ubx_command)
             while True:
                 try:
@@ -211,8 +212,9 @@ class Frame2(tk.Frame):
         self.Heading.place(x=1040,y=340)
         #---------------------Map view-------------------------------------------------------
 
-        self.map_widget = tkintermapview.TkinterMapView(self, width=880, height=600, corner_radius=0)
+        self.map_widget = tkintermapview.TkinterMapView(self, width=880, height=600, corner_radius=0,max_zoom=17)
         self.map_widget.place(relx=0.5, rely=0.5, anchor='center')
+        #self.map_widget.set_tile_server("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png")  # OpenStreetMap (default)
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
         #self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google satellite
         #self.map_widget.set_overlay_tile_server("http://a.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png")  # railway infrastructure
@@ -224,7 +226,7 @@ class Frame2(tk.Frame):
             self.data = self.data_queue.get()
             global Latitude_values,Longitude_values,Speed,direction,Location,Real_time
             direction = get_direction(self.data.true_course) if self.data.true_course is not None else "Unknown"
-            if self.data.spd_over_grnd <=4:
+            if self.data.spd_over_grnd <=5:
                 Speed = 0
             else:
                 Speed = self.data.spd_over_grnd
@@ -245,6 +247,8 @@ class Frame2(tk.Frame):
             # Hiển thị marker mới
             self.marker1 = self.map_widget.set_position(self.data.latitude, self.data.longitude, text="Vị Trí Tàu", marker=True)
         self.after(1000,self.update_realtime_frame2)
+    #def update_path(self):
+        
     def update_time(self):
         global Real_time
         Real_time = datetime.now().strftime('%H:%M:%S')
@@ -252,18 +256,16 @@ class Frame2(tk.Frame):
         self.after(1000,self.update_time)
         
 if __name__ == "__main__":
-    try:
-            mqtt_client = MQTTClient(mqtt_broker, mqtt_port, mqtt_username, mqtt_password, mqtt_topic_1)
-            mqtt_client.start()
-            gps_thread =threading.Thread(target=read_gps)
-            gps_thread.start()
-            app = RootApplication()
-            app.mainloop()
-    except KeyboardInterrupt:
-            print("Dừng đọc dữ liệu GPS.")
-            mqtt_client.close_hivemq()
-            gps_thread.join()
-            app.destroy()
+    mqtt_client = MQTTClient(mqtt_broker, mqtt_port, mqtt_username, mqtt_password, mqtt_topic_1)
+    mqtt_client.start()
+    gps_thread =threading.Thread(target=read_gps)
+    gps_thread.start()
+    app = RootApplication()
+    app.mainloop()
+    print("Dừng đọc dữ liệu GPS.")
+    mqtt_client.close_hivemq()
+    gps_thread.join()
+    app.destroy()
     
     
 

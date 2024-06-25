@@ -75,19 +75,19 @@ class MQTTClient():
         idx = int((true_course + 11.25) % 360 / 22.5)
         return directions[idx]
     # Publish data to hivemq
-    # def send_data_to_hivemq(self,time, speed, latitude, longitude, direction):
-    # # Tạo một dictionary chứa thông số cần gửi
-    #     data = {
-    #         "time": time,
-    #         "speed": speed,
-    #         "latitude": latitude,
-    #         "longitude": longitude,
-    #         "direction": direction
-    #     }
-    #     # Chuyển đổi dictionary thành chuỗi JSON
-    #     json_data = json.dumps(data)
-    #     # Đẩy dữ liệu lên topic MQTT
-    #     self.client.publish(self.topic, json_data)
+    def send_data_to_hivemq(self,time, speed, latitude, longitude, direction):
+    # Tạo một dictionary chứa thông số cần gửi
+        data = {
+            "time": time,
+            "speed": speed,
+            "latitude": latitude,
+            "longitude": longitude,
+            "direction": direction
+        }
+        # Chuyển đổi dictionary thành chuỗi JSON
+        json_data = json.dumps(data)
+        # Đẩy dữ liệu lên topic MQTT
+        self.client.publish(self.topic, json_data)
     def start(self):
         self.client.loop_start()
     def close_hivemq(self):

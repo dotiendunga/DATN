@@ -347,41 +347,53 @@ class Frame2(tk.Frame):
         self.marker2 =None
         #------------------- header location detail ---------------------------------------------------
         # Header latitude
-        self.header2_1= Label(self,text="Kinh Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
+        self.header2_1= Label(self,text="Kinh Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER
+                              ,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_1.place(x=0,y=180)
         # Header Longitude
-        self.header2_2= Label(self,text="Vĩ Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
+        self.header2_2= Label(self,text="Vĩ Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER
+                              ,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_2.place(x=0,y=250)
         # Header speed
-        self.header2_3= Label(self,text="Tốc độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
+        self.header2_3= Label(self,text="Tốc độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER
+                              ,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_3.place(x=0,y=320)
         # Header address
-        self.header2_4= Label(self,text="Địa chỉ",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
+        self.header2_4= Label(self,text="Địa chỉ",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER
+                              ,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_4.place(x=1032,y=180)
         # Header distance: 
-        self.header2_5= Label(self,text="Khoảng cách",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
+        self.header2_5= Label(self,text="Khoảng cách",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER
+                              ,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_5.place(x=1032,y=280)
         # Header direction 
-        self.header2_6  =Label(self,text="Hướng di chuyển",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 12, "bold"),relief='groove',pady=2)
+        self.header2_6  =Label(self,text="Hướng di chuyển",fg='white',bg="#4660ac",width=15,borderwidth=0,border=1,justify=CENTER
+                               ,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_6.place(x=1032,y=350)
         #------------------- values location details ---------------------------------------------------
         # latitude values
-        self.latitude= Label(self,text="Kinh Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 10, "bold"),relief='groove',pady=2)
+        self.latitude= Label(self,text="Kinh Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER
+                             ,font=("Arial", 10, "bold"),relief='groove',pady=2)
         self.latitude.place(x=0,y=210)
         # Longitude values
-        self.Longitude= Label(self,text="vĩ Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 10, "bold"),relief='groove',pady=2)
+        self.Longitude= Label(self,text="vĩ Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER
+                              ,font=("Arial", 10, "bold"),relief='groove',pady=2)
         self.Longitude.place(x=0,y=280)
         # speed values
-        self.speed= Label(self,text="Tốc Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER,font=("Arial", 10, "bold"),relief='groove',pady=2)
+        self.speed= Label(self,text="Tốc Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER
+                          ,font=("Arial", 10, "bold"),relief='groove',pady=2)
         self.speed.place(x=0,y=350)
          # address values
-        self.Address= Label(self,text="Địa chỉ",fg='Gray',width=21,borderwidth=0,border=1,justify=CENTER,font=("Arial", 9, "bold"),relief='groove',pady=2)
+        self.Address= Label(self,text="Địa chỉ",fg='Gray',width=21,borderwidth=0,border=1,justify=CENTER
+                            ,font=("Arial", 9, "bold"),relief='groove',pady=2)
         self.Address.place(x=1032,y=210)
          # Distance values
-        self.Distance= Label(self,text="Khoảng cách",fg='Gray',width=21,borderwidth=0,border=1,justify=CENTER,font=("Arial", 9, "bold"),relief='groove',pady=2)
+        self.Distance= Label(self,text="Khoảng cách",fg='Gray',width=21,borderwidth=0,border=1,justify=CENTER
+                             ,font=("Arial", 9, "bold"),relief='groove',pady=2)
         self.Distance.place(x=1032,y=310)
         # direction values
-        self.Direction= Label(self,text="Hướng đi",fg='Gray',width=21,borderwidth=0,border=1,justify=CENTER,font=("Arial", 9, "bold"),relief='groove',pady=2)
+        self.Direction= Label(self,text="Hướng đi",fg='Gray',width=21,borderwidth=0,border=1,justify=CENTER
+                              ,font=("Arial", 9, "bold"),relief='groove',pady=2)
         self.Direction.place(x=1032,y=380)
         #---------------------Map view-------------------------------------------------------
 

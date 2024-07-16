@@ -1,30 +1,54 @@
-# import openpyxl
-# import haversine as hs
+import openpyxl
+import paho.mqtt.client as paho
+from paho import mqtt
+import time 
+from datetime import datetime
+import json
+#---------------------------connect to  MQTT----------------------------------
 
-# # Mở file Excel
-# def distance_target(current_position,target_position):
-#     try:
-#         wb = openpyxl.load_workbook('line_point.xlsx')
-#         sheet = wb['sheetdata']  # Thay 'sheetdata' bằng tên sheet cần đọc
-#     except FileNotFoundError:
-#         print("Không tìm thấy tệp Excel tại đường dẫn đã chỉ định.")
-#     # Khởi tạo biến để lưu giá trị từ hai cột
-#     column_values = []
-#     # Đọc các giá trị từ sheet và tính khoảng cách
-#     for row in sheet.iter_rows(values_only=True, min_row=3, max_row=sheet.max_row):
-#         column_values.append((float(row[1]), float(row[2])))
-#     # Tìm điểm trên dải tọa độ gần nhất
-#     nearest_coord = min(column_values, key=lambda coord: hs.haversine(current_position, coord))
-#     # Xác định chỉ mục của điểm gần nhất trong danh sách line_coords
-#     index_of_nearest = column_values.index(nearest_coord)
+# /*MQTT Broker Connection Details*/
+mqtt_broker = "ae501b5ee3194ca682bd67e257459478.s1.eu.hivemq.cloud"
+mqtt_username = "RainWay System"
+mqtt_password = "012301230123aA#"
+mqtt_port = 8883
+mqtt_topic = "Train/Location_data"
+# data speed receive 
 
-#     # Tìm điểm trên dải tọa độ gần nhất
-#     target_coord = min(column_values, key=lambda coord: hs.haversine(target_position, coord))
-#     # Xác định chỉ mục của điểm gần nhất trong danh sách line_coords
-#     index_of_target = column_values.index(target_coord)
-#     total =0.0
-#     for i in range(min(index_of_nearest, index_of_target),max(index_of_nearest, index_of_target)):
-#         distance = hs.haversine(column_values[i], column_values[i + 1])
-#         path_1 = map_widget.set_path([marker_2.position, marker_3.position, (52.57, 13.4), (52.55, 13.35)])
-#         total+=distance
-#     return total
+def on_connect(client, userdata, flags, rc, properties=None):
+    print("CONNACK received with code %s." % rc)
+    # subscribe 1 topic 
+    # client.subscribe(mqtt_topic_2)
+# Callback function khi nhận được tin nhắn từ MQTT Broker
+def on_message(client, userdata, message):
+    print("Received message '" 
+          + str(message.payload.decode("utf-8")) 
+          + "' on topic '"+ message.topic 
+          + "' with QoS " + str(message.qos))
+# client_id is the given name of the client
+client = paho.Client(paho.CallbackAPIVersion.VERSION2)
+# connect to MQTT
+client.on_connect = on_connect
+
+# enable TLS for secure connection
+client.tls_set(tls_version=mqtt.client.ssl.PROTOCOL_TLS)
+# set username and password
+client.username_pw_set(mqtt_username,mqtt_password)
+# connect to HiveMQ Cloud on port 8883 (default for MQTT)
+client.connect(mqtt_broker,mqtt_port)
+# setting callbacks, use separate functions like above for better visibility
+client.on_message = on_message
+
+client.loop_start()
+
+# Mở file Excel
+wb = openpyxl.load_workbook('line_point.xlsx')
+# Chọn sheet bạn muốn đọc
+sheet = wb['sheetdata']  
+while(1):
+    for row in sheet.iter_rows(values_only=True,min_row=3,max_row=sheet.max_row):
+        current_time = datetime.now().strftime('%Y-%m-%d  %H:%M:%S')
+        default_value = '{"Real_Time":"%s","latitude":%f,"longitude":%f,"speed":%f,"direction":%f}'%(current_time,float(row[1]),float(row[2]),20,20672)
+        client.publish(mqtt_topic,payload=default_value)
+        time.sleep(2)
+
+# '{"Real_Time":"2024-07-05  18:47:12","latitude":21.052468,"longitude":105.889678,"speed":20.00000=0,"direction":206.720000}' 

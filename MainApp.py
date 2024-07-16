@@ -7,40 +7,45 @@ from datetime import datetime
 from tkinter import filedialog, messagebox
 from openpyxl import Workbook
 import time 
-import queue
 import threading
+from threading import Lock
 from MQTT_class import*
-from Play_audio import playsound
+from Play_audio import*
 import haversine as hs   
 from haversine import Unit
 import json 
 import tkintermapview
 # from data import distance_target
 import openpyxl
+import os
+
 
 #---------------- initializing the variables    -----------------------
 #Using queue to getdata from thread gps 
-flag_frame1_queue = queue.Queue()
-flag_frame2_queue = queue.Queue()
-flag_frame3_queue = queue.Queue()
-# Khóa để bảo vệ dữ liệu giữa các luồng
-data_lock = threading.Lock()
+# Khóa dữ liệu để tránh xung đột
+data_lock = Lock()
+# Khởi tạo một đối tượng Lock
+sound_lock = Lock()
+# Cờ frame thông báo nhận tín hiệu
+flag_frame1 = False
+flag_frame2 = False
+flag_frame3 = False
 
-queue_flag = False
 # Realtime data latitude - longitude from cloud
 latitude_values=0.0
 longitude_values=0.0
 speed_values=0.0
-distance_2_point=0.0
+
 direction = ""
-# Train status  
-train_status="An Toàn"
 #Location after transfer Latitude - Longitude to Addresss
 Location=""
+# Train status  
+train_status="An Toàn"
+
 # Location target
 Latitude_target=0.0
 Longitude_target=0.0
-Location_click=""
+
 # target_id 
 target_id=1
 # Real time 
@@ -50,11 +55,13 @@ data=""
 speed_id=""
 # Train status  
 train_status="An Toàn"
+speed_warning=0 
 # Turn ON / OFF notification 
 turn_values=0
-#Các điểm mục tiêu 
-# Location_array=[] 
-
+# Khởi tạo biến để lưu giá trị reference 
+column_values = []
+column_speed  = []
+index_of_train = 4
 
 #=========================================   connect to  MQTT   ===========================================
 
@@ -64,30 +71,31 @@ mqtt_username = "RainWay System"
 mqtt_password = "012301230123aA#"
 mqtt_port = 8883
 mqtt_topic_1 = "Train/Location_data"
-        
+
+
+# Kế thừa kết nối MQTT -> Using to modify data received.
 class CustomMQTTClient(MQTTClient):
     def on_message(self, client, userdata, message):
-        # Gọi phương thức on_message của lớp cha nếu muốn giữ lại phần xử lý cũ
         try:
             super().on_message(client, userdata, message)
             self.data = json.loads(str(message.payload.decode("utf-8")) )
-            global speed_values,longitude_values, latitude_values,direction,Location,Latitude_target,Longitude_target,train_status
+            global speed_values,longitude_values, latitude_values,direction,Location,Latitude_target,Longitude_target
             with data_lock:
                 speed_values = float(self.data["speed"])
                 longitude_values = float(self.data["longitude"])
                 latitude_values = float(self.data["latitude"])
-                train_status = "An Toàn" if speed_values < 90 else "Vượt quá tốc độ"
                 adr = tkintermapview.convert_coordinates_to_address(latitude_values,longitude_values)
                 Location = str(adr.street)+"\n"+str(adr.city) +"\n"+str(adr.country)
                 try:
                     direction = self.get_direction(float(self.data["direction"]))
                 except:
                     direction = "Unknown"
-            # Flag
-            flag_frame =True
-            flag_frame1_queue.put(flag_frame)  # Đưa dữ liệu mới vào hàng đợi
-            flag_frame2_queue.put(flag_frame)  # Đưa dữ liệu mới vào hàng đợi
-            flag_frame3_queue.put(flag_frame)  # Đưa dữ liệu mới vào hàng đợi
+                self.return_Index_Train(latitude_values,longitude_values)
+                # Flag
+                global flag_frame1,flag_frame2,flag_frame3
+                flag_frame3 = True
+                flag_frame1 = True
+                flag_frame2 = True
         except Exception as e:
             print(f"An error occurred: {e}")
         # Thêm phần xử lý mới
@@ -105,18 +113,27 @@ class CustomMQTTClient(MQTTClient):
         ]
         idx = int((true_course + 11.25) % 360 / 22.5)
         return directions[idx]
+    # Mở file Excel
+    def return_Index_Train(self,latitude_values,longitude_values):
+        global column_values, index_of_train
+        current_position=(latitude_values, longitude_values)
+        # Tìm điểm trên dải tọa độ gần nhất
+        nearest_coord = min(column_values, key=lambda coord: hs.haversine(current_position, coord))
+        # Xác định chỉ mục của điểm gần nhất trong danh sách line_coords
+        index_of_train = column_values.index(nearest_coord)
+        
 # ==============================================================================================================
 
 # =================================================== Play sound ==============================================
-def playAudio():
+def playAudio_Train_Station():
     global latitude_values, longitude_values, turn_values
     while True:
         if turn_values == 1:
             current_position = (latitude_values, longitude_values)
             # Kiểm tra khoảng cách đến các điểm quan trọng
-            if hs.haversine(current_position, (21.02439, 105.84122), unit=Unit.KILOMETERS) <= 1:
-                playsound('Audio/Audio_HaNoi.wav')
-            elif hs.haversine(current_position, (20.94663, 106.33057), unit=Unit.KILOMETERS) <= 1:
+            # if hs.haversine(current_position, (21.02439, 105.84122), unit=Unit.KILOMETERS) <= 1:
+            #     playsound('Audio/Audio_HaNoi.wav')
+            if hs.haversine(current_position, (20.94663, 106.33057), unit=Unit.KILOMETERS) <= 1:
                 playsound('Audio/Audio_HaiDuong.wav')
             elif hs.haversine(current_position, (20.85596, 106.68736), unit=Unit.KILOMETERS) <= 1:
                 playsound('Audio/Audio_HaiPhong.wav')
@@ -124,6 +141,64 @@ def playAudio():
                 time.sleep(0.5)  # Ngủ khi không cần kiểm tra lại
         else:
             time.sleep(0.5)  # Ngủ khi không cần kiểm tra lại
+# def playAudio_Train_Station():
+#     global latitude_values, longitude_values, turn_values
+#     # Danh sách điểm quan trọng
+#     important_points = [
+#         (21.02439, 105.84122, 'Audio/Audio_HaNoi.wav'),
+#         (20.94663, 106.33057, 'Audio/Audio_HaiDuong.wav'),
+#         (20.85596, 106.68736, 'Audio/Audio_HaiPhong.wav')
+#     ]
+
+#     # Tập hợp để theo dõi các điểm đã được thông báo
+#     notified_points = set()
+#     while True:
+#         if turn_values == 1:
+#             current_position = (latitude_values, longitude_values)
+#             for point in important_points:
+#                 if hs.haversine(current_position, (point[0], point[1]), unit=Unit.KILOMETERS) <= 1 and point not in notified_points:
+#                     playsound(point[2])
+#                     notified_points.add(point) 
+#                     # Kiểm tra nếu tất cả các điểm đã được thông báo
+#                     if len(notified_points) == len(important_points):
+#                         print("Tất cả các điểm đã được thông báo. Dừng lại.")
+#                         notified_points.clear()
+#             time.sleep(0.5)  # Ngủ khi không cần kiểm tra lại
+#         else:
+#             time.sleep(0.5)  # Ngủ khi không cần kiểm tra lại
+def playAudio_Station():
+    global index_of_train
+    while True:
+        try:
+            if turn_values == 1:
+                # Kiểm tra khoảng cách đến các điểm quan trọng
+                if index_of_train < 2:
+                    playsound('Audio/Audio_HaNoi.wav')
+                elif  233< index_of_train <= 235:
+                    playsound('Audio/Audio_HaiDuong.wav')
+                elif 412 < index_of_train <= 414:
+                    playsound('Audio/Audio_HaiPhong.wav')
+                else:
+                    time.sleep(1)  # Ngủ khi không cần kiểm tra lại
+            else:
+                time.sleep(1)
+        except Exception as e:
+                print(f"Play Audio in Station: {e}")
+                         
+def playAudio_Speed_Warning():
+    while True:
+        try:
+            global column_values, speed_values, train_status, speed_warning
+            speed_warning = column_speed[index_of_train]
+            if speed_values > column_speed[index_of_train]:
+                train_status = "Không an toàn"
+                playsound('Audio/Audio_Canhbaotocdo.wav')
+                time.sleep(1)  # Ngủ khi không cần kiểm tra lại
+            else:
+                train_status = "An toàn"
+                time.sleep(1)  # Ngủ khi không cần kiểm tra lại
+        except Exception as e:
+                print(f"Play Audio Speed warning: {e}")
 # ===============================================================================================================
 
 # =====================================================  Main App  ==============================================
@@ -144,8 +219,12 @@ class RootApplication(tk.Tk):
         self.img = ImageTk.PhotoImage(self.image)
         self.label_Bg=tk.Label(self,image=self.img)
         self.label_Bg.place(x=0,y=0) 
-        # Khởi tạo và bắt đầu luồng phát âm thanh
-        self.sound_thread = threading.Thread(target=playAudio, daemon=True)
+        # Khởi tạo và bắt đầu luồng phát âm thanh khoảng cách tàu và ga 
+        self.speed_Warning_thread = threading.Thread(target=playAudio_Speed_Warning, daemon=True)
+        self.speed_Warning_thread.start()
+        self.station_thread = threading.Thread(target=playAudio_Station, daemon=True)
+        self.station_thread.start()
+        self.sound_thread = threading.Thread(target=playAudio_Train_Station, daemon=True)
         self.sound_thread.start()
         # Khởi tạo MQTT Client
         self.mqtt_client = CustomMQTTClient(mqtt_broker, mqtt_port, mqtt_username, mqtt_password, mqtt_topic_1)
@@ -165,7 +244,11 @@ class RootApplication(tk.Tk):
         self.mqtt_client.close_hivemq()
 
         # Chờ cho luồng phát âm thanh kết thúc
+        self.speed_Warning_thread.join()
+        self.station_thread.join()
         self.sound_thread.join()
+        pygame.mixer.quit()
+        pygame.quit()
 
         # Hủy ứng dụng Tkinter
         self.destroy()
@@ -280,7 +363,7 @@ class Frame1(tk.Frame):
         self.Entry_Lat_Long_Target=Entry(self,fg="#4660ac",bg="#EDEBEB",relief='flat',width=19,borderwidth=1,border=1,justify=CENTER
                                          ,font=("Arial", 15, "bold"))
         self.Entry_Lat_Long_Target.place(x=550,y=435)        
-        self.Label_target=Label(self,text="Kinh độ/ Vĩ độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=0,justify=CENTER,
+        self.Label_target=Label(self,text="Vĩ độ/ Kinh độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=0,justify=CENTER,
                                         font=("Arial", 14, "bold"))
         self.Label_target.place(x=400,y=435)
         # --------------------------------------- Status Speed ---------------------------------------------------------------------------
@@ -306,13 +389,11 @@ class Frame1(tk.Frame):
         turn_values =self.turn_values_tk.get()
         if target_id==0:
             self.Entry_Lat_Long_Target.delete(0,'end')
-            # self.Entry_Longitude_Target.delete(0,'end')
-            Latitude_target=0.0
-            Longitude_target=0.0
+            Latitude_target= None
+            Longitude_target= None
             target_id=1
         data_target = self.Entry_Lat_Long_Target.get() 
         if data_target !="" and data_target is not None:
-            # data_target = self.Entry_Latitude_Target.get() 
             parts = data_target.split()
             try:  # Kiểm tra xem danh sách có phần tử nào không trước khi truy cập
                 Latitude_target=float(parts[0])
@@ -322,20 +403,19 @@ class Frame1(tk.Frame):
         self.after(1000,self.update_label_location_target)
         
     def update_frame1_realtime(self):
-        global train_status,Location,speed_values,longitude_values,latitude_values,direction,flag_frame1
+        global train_status,Location,speed_values,longitude_values,latitude_values,direction,flag_frame1,speed_warning
         # self.update_label_location_target()
-        while not flag_frame1_queue.empty():
-            flag_frame1 = flag_frame1_queue.get()
-            if flag_frame1 is True:
-                try:    
-                    self.header_speed_noti.config(text=train_status)
-                    self.label_Noti.config(text=train_status)
-                    self.local1.config(text=Location)
-                    self.label_show.config(text=direction)
-                    self.speed1.config(text=speed_values)
-                except Exception as e:
-                    print(f"An error occurred in frame1 : {e}")
-        self.after(100, self.update_frame1_realtime)
+        if flag_frame1:
+            flag_frame1 = False
+            try:    
+                self.header_speed_noti.config(text="%d Km/h"%speed_warning)
+                self.label_Noti.config(text=train_status)
+                self.local1.config(text=Location)
+                self.label_show.config(text=direction)
+                self.speed1.config(text="%d Km/h"%speed_values)
+            except Exception as e:
+                print(f"An error occurred in frame1 : {e}")
+        self.after(500, self.update_frame1_realtime)
 
 #------------------------- Frame 2:  Show map -----------------------------------------------------------
         
@@ -345,11 +425,11 @@ class Frame2(tk.Frame):
         
         #------------------- header location detail ---------------------------------------------------
         # Header latitude
-        self.header2_1= Label(self,text="Kinh Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER
+        self.header2_1= Label(self,text="vĩ Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER
                               ,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_1.place(x=0,y=180)
         # Header Longitude
-        self.header2_2= Label(self,text="Vĩ Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER
+        self.header2_2= Label(self,text="Kinh Độ",fg='white',bg="#4660ac",width=12,borderwidth=0,border=1,justify=CENTER
                               ,font=("Arial", 12, "bold"),relief='groove',pady=2)
         self.header2_2.place(x=0,y=250)
         # Header speed
@@ -370,11 +450,11 @@ class Frame2(tk.Frame):
         self.header2_6.place(x=1032,y=350)
         #------------------- values location details ---------------------------------------------------
         # latitude values
-        self.latitude= Label(self,text="Kinh Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER
+        self.latitude= Label(self,text="Vĩ Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER
                              ,font=("Arial", 10, "bold"),relief='groove',pady=2)
         self.latitude.place(x=0,y=210)
         # Longitude values
-        self.Longitude= Label(self,text="vĩ Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER
+        self.Longitude= Label(self,text="Kinh Độ",fg='Gray',width=15,borderwidth=0,border=1,justify=CENTER
                               ,font=("Arial", 10, "bold"),relief='groove',pady=2)
         self.Longitude.place(x=0,y=280)
         # speed values
@@ -401,18 +481,12 @@ class Frame2(tk.Frame):
         self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=m&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google normal
         # self.map_widget.set_tile_server("https://mt0.google.com/vt/lyrs=s&hl=en&x={x}&y={y}&z={z}&s=Ga", max_zoom=22)  # google satellite
         self.marker1 =None
-        self.marker2 =None
-        try:
-            wb = openpyxl.load_workbook('line_point.xlsx')
-            self.sheet = wb['sheetdata']  # Thay 'sheetdata' bằng tên sheet cần đọc
-            # Khởi tạo biến để lưu giá trị từ hai cột
-            self.column_values = []
-            # Đọc các giá trị từ sheet và tính khoảng cách
-            for row in self.sheet.iter_rows(values_only=True, min_row=3, max_row=self.sheet.max_row):
-                self.column_values.append((float(row[1]), float(row[2])))
-            path_1= self.map_widget.set_path(self.column_values)
-        except FileNotFoundError:
-            print("Không tìm thấy tệp Excel tại đường dẫn đã chỉ định.")
+        # self.marker2 =None
+        global column_values
+        # for row in sheet.iter_rows(values_only=True, min_row=3, max_row=sheet.max_row-1):
+        #     # print(row[1],row[2])
+        #     column_values.append((float(row[1]), float(row[2])))
+        path_1= self.map_widget.set_path(column_values)
             
         #----------------------Show location - Real time------------------------
         self.map_widget.add_right_click_menu_command(label="xóa mục tiêu",command=self.clear_marker_event,
@@ -422,56 +496,50 @@ class Frame2(tk.Frame):
 
     # update location in map
     def update_location_map(self):
-        global latitude_values,longitude_values,train_status,speed_values,direction,Location
-        while not flag_frame2_queue.empty():
-            flag_frame2 = flag_frame2_queue.get()
-            if flag_frame2 == True:
-                # print(latitude_values,longitude_values)
-                self.Address.config(text=Location)
-                # update_label_direction 
-                self.Direction.config(text=direction)
-                # update_speed()
-                self.speed.config(text=speed_values)
-                self.latitude.config(text=latitude_values)
-                self.Longitude.config(text=longitude_values)
-                try:
-                    if self.marker1 is not None:
-                        self.marker1.delete()
-                    self.marker1= self.map_widget.set_position(latitude_values, longitude_values,text="Vị trí tàu",marker=True)
-                    # self.map_widget.set_path()
-                except Exception as e:
-                    print(e)
-            else:
-                pass
+        global latitude_values,longitude_values,train_status,speed_values,direction,Location,flag_frame2
+        if flag_frame2:
+            flag_frame2 = False
+            # print(latitude_values,longitude_values)
+            self.Address.config(text=Location)
+            # update_label_direction 
+            self.Direction.config(text=direction)
+            # update_speed()
+            self.speed.config(text="%d Km/h"%speed_values)
+            self.latitude.config(text=latitude_values)
+            self.Longitude.config(text=longitude_values)
+            try:
+                if self.marker1 is not None:
+                    self.marker1.delete()
+                self.marker1= self.map_widget.set_position(latitude_values, longitude_values,text="Vị trí tàu",marker=True)
+            except Exception as e:
+                print(e)
+        else:
+            pass
         # Update the position on the map
-        self.after(1000,self.update_location_map)
+        self.after(500,self.update_location_map)
     def update_location_target(self):
-        global latitude_values,longitude_values,target_id,Latitude_target,Longitude_target,turn_values,distance_2_point
-        # print(Latitude_target,Longitude_target)
-        # address = tkintermapview.convert_address_to_coordinates(Location_target)
-        if Latitude_target and Longitude_target is not None:
+        global latitude_values,longitude_values,target_id,Latitude_target,Longitude_target,turn_values
+        if Latitude_target is not None and Longitude_target is not None:
             try:
                 current_position=(latitude_values,longitude_values)
                 target_position =(Latitude_target,Longitude_target)
-                
                 distance_2_point=self.distance_target(current_position,target_position)
                 self.marker2=self.map_widget.set_marker(Latitude_target,Longitude_target,text="Điểm mục tiêu")
                 # update distance values
-                self.Distance.config(text=distance_2_point)
+                # self.Distance.config(text=str(distance_2_point))
+                self.Distance.config(text="%f Km"%distance_2_point)
                 # Load file âm thanh
                 if distance_2_point <= 1.0 :
-                    # self.marker2.delete()
-                    self.marker2.delete()
-                    # self.map_widget.delete_all_path()
+                    target_id=0
+                    self.map_widget.delete_all_marker()
                     if turn_values == 1:
                         playsound('Audio/Audio_MucTieu.wav')
-                    target_id=0
                     self.Distance.config(text="Hoàn thành")
                 # mutex.release()
             except Exception as e:
                 print(f"Location Target in Map:{e}")
                 target_id=1
-        self.after(2000,self.update_location_target)
+        self.after(1000,self.update_location_target)
     def clear_marker_event(self,event=None):
         global target_id 
         try:
@@ -481,22 +549,23 @@ class Frame2(tk.Frame):
         except Exception as e:
             print(f"An error occurred in frame2: {e}")
     # Mở file Excel
-    def distance_target(self,current_position,target_position):
+    def distance_target(self,current_position,target_position): 
+        global column_values     
         # Tìm điểm trên dải tọa độ gần nhất
-        nearest_coord = min(self.column_values, key=lambda coord: hs.haversine(current_position, coord))
+        nearest_coord = min(column_values, key=lambda coord: hs.haversine(current_position, coord))
         # Xác định chỉ mục của điểm gần nhất trong danh sách line_coords
-        index_of_nearest = self.column_values.index(nearest_coord)
+        index_of_train = column_values.index(nearest_coord)
 
         # Tìm điểm trên dải tọa độ gần nhất
-        target_coord = min(self.column_values, key=lambda coord: hs.haversine(target_position, coord))
+        target_coord = min(column_values, key=lambda coord: hs.haversine(target_position, coord))
         # Xác định chỉ mục của điểm gần nhất trong danh sách line_coords
-        index_of_target = self.column_values.index(target_coord)
+        index_of_target = column_values.index(target_coord)
         total =0.0
-        for i in range(min(index_of_nearest, index_of_target),max(index_of_nearest, index_of_target)):
-            distance = hs.haversine(self.column_values[i],self.column_values[i + 1])
-            # path_1 = self.map_widget.set_path
+        for i in range(min(index_of_train, index_of_target),max(index_of_train, index_of_target)):
+            distance = hs.haversine(column_values[i],column_values[i + 1])
             total+=distance
-        return total        
+        return total 
+           
 #----------------------------------------------------- Frame 3: Data Receive ---------------------------------------------------------------------
         
 class Frame3(tk.Frame):
@@ -506,15 +575,15 @@ class Frame3(tk.Frame):
         self.tree = ttk.Treeview(self, columns=("Time", "Latitude", "Longtitud","Speed","Location","Status"), show="headings")
         self.tree.place(width=1000,height=500,x=0,y=20)
         self.tree.heading("Speed", text="Tốc độ")
-        self.tree.heading("Latitude", text="Kinh độ")
-        self.tree.heading("Longtitud", text="Vĩ độ")
+        self.tree.heading("Latitude", text="Vĩ độ")
+        self.tree.heading("Longtitud", text="Kinh độ")
         self.tree.heading("Location", text="Địa chỉ hiện tại")
         self.tree.heading("Status", text="Trạng thái")
         self.tree.heading("Time", text="Thời gian")
         # Thiết lập chiều rộng cột
+        self.tree.column("Speed",anchor="center", width=30)
         self.tree.column("Latitude",anchor="center", width=50)
         self.tree.column("Longtitud", anchor="center",width=50)
-        self.tree.column("Speed",anchor="center", width=30)
         self.tree.column("Location", anchor="center",width=250)
         self.tree.column("Status", anchor="center",width=50)
         self.tree.column("Time", anchor="center",width=65)
@@ -528,20 +597,19 @@ class Frame3(tk.Frame):
         self.button_save = tk.Button(self,text="xuất dữ liệu",padx=8,pady=3,background="#4660ac",fg="white",font=("Arial", 15, "bold")
                                      ,border=0,borderwidth=0,justify=CENTER,cursor='hand2',command=self.get_data)
         self.button_save.place(x=1030,y=250)
-        # self.update_data(current_time, Location,latitude_values,longitude_values)  # Cập nhật thời gian mỗi giây
         self.update_data()
+        self.schedule_backup()  # Bắt đầu sao lưu định kỳ
     # update data to table:
     def update_data(self):
         # Dữ liệu mẫu
-        global current_time,Location,latitude_values,longitude_values,train_status,speed_values
+        global current_time,Location,latitude_values,longitude_values,train_status,speed_values,flag_frame3
         # Loại bỏ ký tự xuống dòng (\n)
-        while not flag_frame3_queue.empty():
-            flag_frame = flag_frame3_queue.get()
-            if flag_frame == True :
-                Location_no_newline = Location.replace("\n", "")
-                data = [str(current_time), str(latitude_values), str(longitude_values),str(speed_values),Location_no_newline,train_status]
-                self.tree.insert("", "end", values=data)
-        self.after(100,self.update_data)      
+        if flag_frame3:
+            flag_frame3 = False
+            Location_no_newline = Location.replace("\n", "")
+            data = [str(current_time), str(latitude_values), str(longitude_values),str(speed_values)+" km/h",Location_no_newline,train_status]
+            self.tree.insert("", "end", values=data)
+        self.after(250,self.update_data)      
     def get_data(self):
         # Tạo một workbook mới
         self.wb = Workbook()
@@ -552,19 +620,51 @@ class Frame3(tk.Frame):
         for item in self.tree.get_children():
             self.values = self.tree.item(item, 'values')
             self.ws.append(self.values)
-        self.clear_data_received()
+        
         # Hiển thị hộp thoại để chọn vị trí lưu tệp
         file_path = filedialog.asksaveasfilename(defaultextension=".xlsx", filetypes=[("Excel files", "*.xlsx")])
         if file_path:
             # Lưu workbook thành file Excel tại đường dẫn đã chọn
             try:
                 self.wb.save(file_path)
+                self.clear_data_received()
+                self.delete_backup()  # Xóa backup khi dữ liệu được export thành công
             except Exception as e:
                 messagebox.showerror("Lỗi", f"Có lỗi xảy ra khi lưu file: {e}")
     def clear_data_received(self):
         for item in self.tree.get_children(): # used self.tree instead
             self.tree.delete(item)
+    def backup_data(self):
+        backup_file_path = 'backup_data.xlsx'
+        self.wb = Workbook()
+        self.ws = self.wb.active
+        self.ws.append(["Time", "Latitude", "Longitude", "Speed", "Location", "Status"])
+        for item in self.tree.get_children():
+            self.values = self.tree.item(item, 'values')
+            self.ws.append(self.values)
+        try:
+            self.wb.save(backup_file_path)
+            print("Backup saved successfully.")
+        except Exception as e:
+            print(f"Error while saving backup: {e}")
+
+    def delete_backup(self):
+        backup_file_path = 'backup_data.xlsx'
+        if os.path.exists(backup_file_path):
+            os.remove(backup_file_path)
+            print("Backup file deleted.")
+
+    def schedule_backup(self):
+        self.backup_data()
+        self.master.after(300000, self.schedule_backup)  # Sao lưu mỗi 5 phút
             
 if __name__ == "__main__":
+    #Các điểm ga tàu - lưu trữ 
+    wb = openpyxl.load_workbook('line_point.xlsx')
+    sheet = wb['sheetdata']  # Thay 'sheetdata' bằng tên sheet cần đọc
+    # Đọc các giá trị từ sheet và tính khoảng cách
+    for row in sheet.iter_rows(values_only=True, min_row=3, max_row=sheet.max_row-1):
+        column_values.append((float(row[1]), float(row[2])))
+        column_speed.append((float(row[3])))
     app = RootApplication()
     app.mainloop()
